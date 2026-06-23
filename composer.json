@@ -1,0 +1,8 @@
+{
+    "require": {
+        "leafs/leaf": "v4.0",
+        "leafs/auth": "^5.0",
+        "leafs/mail": "^2.2",
+        "sinuspi/migri": "^1.0"
+    }
+}
