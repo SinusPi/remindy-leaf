@@ -6,18 +6,9 @@ use Leaf\Helpers\Password;
 
 // ─── Environment ──────────────────────────────────────────────────────────────
 if (file_exists(__DIR__ . '/.env')) {
-
-    foreach (file(__DIR__ . '/.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
-        $line = trim($line);
-        if ($line === '' || $line[0] === '#' || strpos($line, '=') === false) {
-            continue;
-        }
-        [$name, $value] = array_map('trim', explode('=', $line, 2));
-        $value = preg_replace('/^(["\'])(.*)\\1$/', '$2', $value);
-        if (!array_key_exists($name, $_ENV)) {
-            putenv("$name=$value");
-            $_ENV[$name] = $value;
-        }
+    $_ENV = array_merge($_ENV, parse_ini_file(__DIR__ . '/.env', false, INI_SCANNER_RAW));
+    foreach ($_ENV as $key => $value) {
+        putenv("{$key}={$value}");
     }
 }
 
