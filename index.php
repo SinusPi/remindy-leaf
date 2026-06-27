@@ -75,6 +75,7 @@ $schema->manageTable('reminder_completions', [
         INDEX idx_completions_user (user_id),
         INDEX idx_completions_date (completed_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    '2' => "ALTER TABLE reminder_completions ADD COLUMN completion_comment TEXT NULL AFTER completed_at",
 ]);
 
 // ─── Token Validation Middleware ──────────────────────────────────────────────
@@ -786,6 +787,8 @@ app()->post('/reminders/{id}/complete', [
     'middleware' => 'bearer',
     function ($id) {
         $userId = authenticatedUserId();
+        $payload = request()->get(['completion_comment']);
+        $completionComment = trim((string) ($payload['completion_comment'] ?? ''));
         $reminder = findReminderForUser($id, $userId);
 
         if (!$reminder) {
@@ -803,6 +806,7 @@ app()->post('/reminders/{id}/complete', [
             'reminder_id' => (int) $id,
             'user_id' => $userId,
             'completed_at' => $completedAt,
+            'completion_comment' => $completionComment !== '' ? $completionComment : null,
         ])->execute();
 
         $latest = findReminderForUser($id, $userId);
@@ -837,9 +841,20 @@ app()->get('/reminders/{id}/completions', [
             ->orderBy('completed_at', 'DESC')
             ->get();
 
+        $mapped = [];
+        foreach ($completions as $completion) {
+            $mapped[] = [
+                'id' => (int) $completion['id'],
+                'reminder_id' => (int) $completion['reminder_id'],
+                'user_id' => (int) $completion['user_id'],
+                'completed_at' => $completion['completed_at'],
+                'completion_comment' => $completion['completion_comment'],
+            ];
+        }
+
         response()->json([
             'success' => true,
-            'completions' => $completions,
+            'completions' => $mapped,
         ], 200);
     },
 ]);

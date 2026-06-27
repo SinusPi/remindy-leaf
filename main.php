@@ -81,9 +81,38 @@
             margin-top: 10px;
         }
         .actions button { width: auto; padding: 8px 12px; }
+        .history {
+            margin-top: 10px;
+            background: #f8fbff;
+            border: 1px solid #d9e7f2;
+            border-radius: 8px;
+            padding: 10px;
+        }
+        .history-item {
+            border-bottom: 1px dashed #d3e0ea;
+            padding: 8px 0;
+        }
+        .history-item:last-child {
+            border-bottom: none;
+        }
+        .toolbar {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(160px, 1fr));
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        select {
+            width: 100%;
+            padding: 9px 10px;
+            border-radius: 8px;
+            border: 1px solid #c7d6e2;
+            font-size: 14px;
+            background: #fff;
+        }
         @media (max-width: 720px) {
             .page { padding: 12px; }
             .row > div { flex: 1 1 100%; }
+            .toolbar { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -161,6 +190,36 @@
 
         <div class="card">
             <h2>Your Reminders</h2>
+            <div class="toolbar">
+                <div>
+                    <label for="filterSeverity">Filter severity</label>
+                    <select id="filterSeverity">
+                        <option value="all">All</option>
+                        <option value="green">Green</option>
+                        <option value="yellow">Yellow</option>
+                        <option value="red">Red</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="filterType">Filter type</label>
+                    <select id="filterType">
+                        <option value="all">All</option>
+                        <option value="date">Date-based</option>
+                        <option value="period">Period-based</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="sortBy">Sort</label>
+                    <select id="sortBy">
+                        <option value="severity_desc">Severity (red first)</option>
+                        <option value="days_elapsed_desc">Most overdue</option>
+                        <option value="days_elapsed_asc">Least overdue</option>
+                        <option value="avg_interval_desc">Highest average interval</option>
+                        <option value="title_asc">Title A-Z</option>
+                        <option value="title_desc">Title Z-A</option>
+                    </select>
+                </div>
+            </div>
             <div id="remindersList"></div>
         </div>
     </section>
@@ -169,6 +228,8 @@
 <script>
 $(function () {
     let registerMode = false;
+    let remindersCache = [];
+    const completionsCache = {};
 
     const token = localStorage.getItem('access_token');
     if (token) {
@@ -225,6 +286,10 @@ $(function () {
         bootApp();
     });
 
+    $('#filterSeverity, #filterType, #sortBy').on('change', function () {
+        renderReminders(remindersCache);
+    });
+
     $('#createReminderBtn').on('click', async function () {
         try {
             const payload = {
@@ -248,8 +313,14 @@ $(function () {
 
     $('#remindersList').on('click', '.complete-btn', async function () {
         const id = $(this).data('id');
+        const completionComment = prompt('Optional completion comment:', '');
+        if (completionComment === null) {
+            return;
+        }
         try {
-            await api('/reminders/' + id + '/complete', 'POST', {}, true);
+            await api('/reminders/' + id + '/complete', 'POST', {
+                completion_comment: completionComment.trim()
+            }, true);
             showSuccess('Reminder completed');
             await loadReminders();
         } catch (e) {
@@ -295,6 +366,23 @@ $(function () {
         }
     });
 
+    $('#remindersList').on('click', '.history-btn', async function () {
+        const id = $(this).data('id');
+        const target = $('#history-' + id);
+
+        if (!target.hasClass('hidden')) {
+            target.addClass('hidden').html('');
+            return;
+        }
+
+        try {
+            const history = await getCompletionsForReminder(id, true);
+            target.html(renderHistoryHtml(history)).removeClass('hidden');
+        } catch (e) {
+            showError(e.message || 'Failed to load completion history');
+        }
+    });
+
     async function bootApp() {
         try {
             const me = await api('/me', 'GET', null, true);
@@ -315,10 +403,44 @@ $(function () {
 
     async function loadReminders() {
         const res = await api('/reminders', 'GET', null, true);
-        const list = res.reminders || [];
+        remindersCache = res.reminders || [];
+        renderReminders(remindersCache);
+    }
+
+    function renderReminders(inputList) {
+        let list = inputList.slice();
+
+        const sevFilter = $('#filterSeverity').val();
+        if (sevFilter && sevFilter !== 'all') {
+            list = list.filter(function (r) {
+                return r.current_severity === sevFilter;
+            });
+        }
+
+        const typeFilter = $('#filterType').val();
+        if (typeFilter === 'date') {
+            list = list.filter(function (r) {
+                return !!r.desired_date;
+            });
+        }
+        if (typeFilter === 'period') {
+            list = list.filter(function (r) {
+                return r.expected_period_days !== null;
+            });
+        }
+
+        const sortBy = $('#sortBy').val();
+        list.sort(function (a, b) {
+            if (sortBy === 'title_asc') return compareString(a.title, b.title);
+            if (sortBy === 'title_desc') return compareString(b.title, a.title);
+            if (sortBy === 'days_elapsed_asc') return numberOrNegOne(a.days_elapsed_for_severity) - numberOrNegOne(b.days_elapsed_for_severity);
+            if (sortBy === 'days_elapsed_desc') return numberOrNegOne(b.days_elapsed_for_severity) - numberOrNegOne(a.days_elapsed_for_severity);
+            if (sortBy === 'avg_interval_desc') return numberOrNegOne(b.average_days_between_completions) - numberOrNegOne(a.average_days_between_completions);
+            return severityRank(b.current_severity) - severityRank(a.current_severity);
+        });
 
         if (!list.length) {
-            $('#remindersList').html('<p class="small">No reminders yet.</p>');
+            $('#remindersList').html('<p class="small">No reminders match the current filters.</p>');
             return;
         }
 
@@ -340,9 +462,11 @@ $(function () {
                     <div class="small">Thresholds: yellow ${escapeHtml(String(r.yellow_after_days))} / red ${escapeHtml(String(r.red_after_days))}</div>
                     <div class="actions">
                         <button class="btn-ok complete-btn" data-id="${r.id}">Complete</button>
+                        <button class="btn-muted history-btn" data-id="${r.id}">History</button>
                         <button class="btn-muted edit-btn" data-id="${r.id}">Edit</button>
                         <button class="btn-danger delete-btn" data-id="${r.id}">Delete</button>
                     </div>
+                    <div id="history-${r.id}" class="history hidden"></div>
                 </div>
             `;
         }).join('');
@@ -382,6 +506,49 @@ $(function () {
                 }
             });
         });
+    }
+
+    async function getCompletionsForReminder(id, forceRefresh) {
+        if (!forceRefresh && completionsCache[id]) {
+            return completionsCache[id];
+        }
+
+        const res = await api('/reminders/' + id + '/completions', 'GET', null, true);
+        completionsCache[id] = res.completions || [];
+        return completionsCache[id];
+    }
+
+    function renderHistoryHtml(items) {
+        if (!items.length) {
+            return '<div class="small">No completion events yet.</div>';
+        }
+
+        return items.map(function (entry) {
+            const comment = entry.completion_comment ? escapeHtml(entry.completion_comment) : '<em>No comment</em>';
+            return `
+                <div class="history-item">
+                    <div class="small"><strong>${escapeHtml(formatDateTime(entry.completed_at))}</strong></div>
+                    <div class="small">Comment: ${comment}</div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function severityRank(color) {
+        if (color === 'red') return 3;
+        if (color === 'yellow') return 2;
+        return 1;
+    }
+
+    function numberOrNegOne(value) {
+        if (value === null || value === undefined || Number.isNaN(Number(value))) {
+            return -1;
+        }
+        return Number(value);
+    }
+
+    function compareString(a, b) {
+        return String(a || '').localeCompare(String(b || ''));
     }
 
     function showError(message) {
