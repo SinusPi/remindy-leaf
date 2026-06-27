@@ -48,6 +48,35 @@ $schema->manageTable('password_resets', [
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
 ]);
 
+$schema->manageTable('reminders', [
+    '1' => "CREATE TABLE reminders (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id INT UNSIGNED NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        desired_date DATE NULL,
+        expected_period_days INT UNSIGNED NULL,
+        yellow_after_days INT UNSIGNED NOT NULL DEFAULT 2,
+        red_after_days INT UNSIGNED NOT NULL DEFAULT 5,
+        created_at DATETIME NULL,
+        updated_at DATETIME NULL,
+        INDEX idx_reminders_user (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+]);
+
+$schema->manageTable('reminder_completions', [
+    '1' => "CREATE TABLE reminder_completions (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        reminder_id INT UNSIGNED NOT NULL,
+        user_id INT UNSIGNED NOT NULL,
+        completed_at DATETIME NOT NULL,
+        created_at DATETIME NULL,
+        updated_at DATETIME NULL,
+        INDEX idx_completions_reminder (reminder_id),
+        INDEX idx_completions_user (user_id),
+        INDEX idx_completions_date (completed_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+]);
+
 // ─── Token Validation Middleware ──────────────────────────────────────────────
 // Static storage for decoded token data
 class TokenContext {
@@ -102,6 +131,136 @@ function getAuthenticatedUser() {
         return null;
     }
     return db()->select('users')->where('id', TokenContext::$decoded->{'user.id'})->first();
+}
+
+function authenticatedUserId() {
+    $user = getAuthenticatedUser();
+    return $user ? (int) $user['id'] : null;
+}
+
+function daysDiffFromNow($dateTimeString) {
+    if (!$dateTimeString) {
+        return null;
+    }
+
+    $timestamp = strtotime($dateTimeString);
+    if ($timestamp === false) {
+        return null;
+    }
+
+    return (int) floor((time() - $timestamp) / 86400);
+}
+
+function reminderSeverityColor($daysElapsed, $yellowAfterDays, $redAfterDays) {
+    if ($daysElapsed === null) {
+        return 'green';
+    }
+
+    if ($daysElapsed >= $redAfterDays) {
+        return 'red';
+    }
+
+    if ($daysElapsed >= $yellowAfterDays) {
+        return 'yellow';
+    }
+
+    return 'green';
+}
+
+function reminderWithStats(array $reminder) {
+    $completions = db()
+        ->select('reminder_completions')
+        ->where('reminder_id', (int) $reminder['id'])
+        ->orderBy('completed_at', 'ASC')
+        ->get();
+
+    $lastCompletedAt = null;
+    if (!empty($completions)) {
+        $last = end($completions);
+        $lastCompletedAt = $last['completed_at'];
+    }
+
+    $daysSinceLastCompletion = daysDiffFromNow($lastCompletedAt);
+    $daysSinceDesiredDate = daysDiffFromNow($reminder['desired_date'] ? $reminder['desired_date'] . ' 00:00:00' : null);
+
+    $daysElapsedForSeverity = $daysSinceLastCompletion;
+    if ($daysElapsedForSeverity === null && $reminder['desired_date']) {
+        $daysElapsedForSeverity = $daysSinceDesiredDate;
+    }
+
+    $averageDaysBetweenCompletions = null;
+    if (count($completions) >= 2) {
+        $sum = 0;
+        $count = 0;
+        for ($i = 1; $i < count($completions); $i++) {
+            $prev = strtotime($completions[$i - 1]['completed_at']);
+            $curr = strtotime($completions[$i]['completed_at']);
+            if ($prev !== false && $curr !== false && $curr >= $prev) {
+                $sum += ($curr - $prev) / 86400;
+                $count++;
+            }
+        }
+        if ($count > 0) {
+            $averageDaysBetweenCompletions = round($sum / $count, 2);
+        }
+    }
+
+    $currentSeverity = reminderSeverityColor(
+        $daysElapsedForSeverity,
+        (int) $reminder['yellow_after_days'],
+        (int) $reminder['red_after_days']
+    );
+
+    $averageSeverity = $averageDaysBetweenCompletions === null
+        ? null
+        : reminderSeverityColor(
+            (int) floor($averageDaysBetweenCompletions),
+            (int) $reminder['yellow_after_days'],
+            (int) $reminder['red_after_days']
+        );
+
+    return [
+        'id' => (int) $reminder['id'],
+        'title' => $reminder['title'],
+        'desired_date' => $reminder['desired_date'],
+        'expected_period_days' => $reminder['expected_period_days'] !== null ? (int) $reminder['expected_period_days'] : null,
+        'yellow_after_days' => (int) $reminder['yellow_after_days'],
+        'red_after_days' => (int) $reminder['red_after_days'],
+        'created_at' => $reminder['created_at'],
+        'updated_at' => $reminder['updated_at'],
+        'last_completed_at' => $lastCompletedAt,
+        'days_since_last_completion' => $daysSinceLastCompletion,
+        'days_since_desired_date' => $daysSinceDesiredDate,
+        'days_elapsed_for_severity' => $daysElapsedForSeverity,
+        'average_days_between_completions' => $averageDaysBetweenCompletions,
+        'current_severity' => $currentSeverity,
+        'average_severity' => $averageSeverity,
+        'completion_count' => count($completions),
+    ];
+}
+
+function findReminderForUser($reminderId, $userId) {
+    return db()
+        ->select('reminders')
+        ->where('id', (int) $reminderId)
+        ->where('user_id', (int) $userId)
+        ->first();
+}
+
+function secureRandomHex($bytes = 32) {
+    if (function_exists('random_bytes')) {
+        return bin2hex(random_bytes($bytes));
+    }
+
+    if (function_exists('openssl_random_pseudo_bytes')) {
+        $strong = false;
+        $buffer = openssl_random_pseudo_bytes($bytes, $strong);
+        if ($buffer !== false) {
+            return bin2hex($buffer);
+        }
+    }
+
+    return sha1(uniqid('', true) . microtime(true));
 }
 
 
@@ -277,7 +436,7 @@ app()->post('/forgot-password', function () {
     $user = db()->select('users', 'id, username')->where('email', $email)->first();
 
     if ($user) {
-        $token     = bin2hex(random_bytes(32));
+        $token     = secureRandomHex(32);
         $tokenHash = hash('sha256', $token);
         $expires   = date('Y-m-d H:i:s', strtotime('+1 hour'));
 
@@ -376,6 +535,314 @@ app()->post('/reset-password', function () {
         'message' => 'Your password has been reset. You may now log in.',
     ], 200);
 });
+
+// ── Reminders API (protected) ────────────────────────────────────────────────
+app()->get('/reminders', [
+    'middleware' => 'bearer',
+    function () {
+        $userId = authenticatedUserId();
+        $rows = db()
+            ->select('reminders')
+            ->where('user_id', $userId)
+            ->orderBy('id', 'DESC')
+            ->get();
+
+        $reminders = [];
+        foreach ($rows as $row) {
+            $reminders[] = reminderWithStats($row);
+        }
+
+        response()->json([
+            'success' => true,
+            'reminders' => $reminders,
+        ], 200);
+    },
+]);
+
+app()->post('/reminders', [
+    'middleware' => 'bearer',
+    function () {
+        $data = request()->get([
+            'title',
+            'desired_date',
+            'expected_period_days',
+            'yellow_after_days',
+            'red_after_days',
+        ]);
+
+        $title = trim((string) ($data['title'] ?? ''));
+        $desiredDate = trim((string) ($data['desired_date'] ?? ''));
+        $expectedPeriodDays = $data['expected_period_days'] !== null && $data['expected_period_days'] !== ''
+            ? (int) $data['expected_period_days']
+            : null;
+        $yellowAfterDays = $data['yellow_after_days'] !== null && $data['yellow_after_days'] !== ''
+            ? (int) $data['yellow_after_days']
+            : 2;
+        $redAfterDays = $data['red_after_days'] !== null && $data['red_after_days'] !== ''
+            ? (int) $data['red_after_days']
+            : 5;
+
+        if ($title === '') {
+            response()->json([
+                'success' => false,
+                'message' => 'Title is required',
+                'error' => 'invalid_input',
+            ], 400);
+            return;
+        }
+
+        if ($expectedPeriodDays !== null && $expectedPeriodDays <= 0) {
+            response()->json([
+                'success' => false,
+                'message' => 'Expected period must be a positive number of days',
+                'error' => 'invalid_input',
+            ], 400);
+            return;
+        }
+
+        if ($yellowAfterDays < 0 || $redAfterDays < 0 || $redAfterDays < $yellowAfterDays) {
+            response()->json([
+                'success' => false,
+                'message' => 'Severity thresholds are invalid',
+                'error' => 'invalid_input',
+            ], 400);
+            return;
+        }
+
+        if ($desiredDate !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $desiredDate)) {
+            response()->json([
+                'success' => false,
+                'message' => 'Desired date must use YYYY-MM-DD format',
+                'error' => 'invalid_input',
+            ], 400);
+            return;
+        }
+
+        $userId = authenticatedUserId();
+
+        db()->insert('reminders')->params([
+            'user_id' => $userId,
+            'title' => $title,
+            'desired_date' => $desiredDate !== '' ? $desiredDate : null,
+            'expected_period_days' => $expectedPeriodDays,
+            'yellow_after_days' => $yellowAfterDays,
+            'red_after_days' => $redAfterDays,
+        ])->execute();
+
+        $created = db()
+            ->select('reminders')
+            ->where('id', db()->connection()->lastInsertId())
+            ->first();
+
+        response()->json([
+            'success' => true,
+            'message' => 'Reminder created',
+            'reminder' => reminderWithStats($created),
+        ], 201);
+    },
+]);
+
+app()->get('/reminders/{id}', [
+    'middleware' => 'bearer',
+    function ($id) {
+        $userId = authenticatedUserId();
+        $reminder = findReminderForUser($id, $userId);
+
+        if (!$reminder) {
+            response()->json([
+                'success' => false,
+                'message' => 'Reminder not found',
+                'error' => 'not_found',
+            ], 404);
+            return;
+        }
+
+        response()->json([
+            'success' => true,
+            'reminder' => reminderWithStats($reminder),
+        ], 200);
+    },
+]);
+
+app()->put('/reminders/{id}', [
+    'middleware' => 'bearer',
+    function ($id) {
+        $userId = authenticatedUserId();
+        $reminder = findReminderForUser($id, $userId);
+
+        if (!$reminder) {
+            response()->json([
+                'success' => false,
+                'message' => 'Reminder not found',
+                'error' => 'not_found',
+            ], 404);
+            return;
+        }
+
+        $data = request()->get([
+            'title',
+            'desired_date',
+            'expected_period_days',
+            'yellow_after_days',
+            'red_after_days',
+        ]);
+
+        $title = trim((string) ($data['title'] ?? $reminder['title']));
+        $desiredDateRaw = array_key_exists('desired_date', $data) ? (string) $data['desired_date'] : $reminder['desired_date'];
+        $desiredDate = trim((string) $desiredDateRaw);
+
+        $expectedPeriodDays = array_key_exists('expected_period_days', $data)
+            ? (($data['expected_period_days'] === '' || $data['expected_period_days'] === null) ? null : (int) $data['expected_period_days'])
+            : ($reminder['expected_period_days'] !== null ? (int) $reminder['expected_period_days'] : null);
+
+        $yellowAfterDays = array_key_exists('yellow_after_days', $data)
+            ? (int) $data['yellow_after_days']
+            : (int) $reminder['yellow_after_days'];
+
+        $redAfterDays = array_key_exists('red_after_days', $data)
+            ? (int) $data['red_after_days']
+            : (int) $reminder['red_after_days'];
+
+        if ($title === '') {
+            response()->json([
+                'success' => false,
+                'message' => 'Title is required',
+                'error' => 'invalid_input',
+            ], 400);
+            return;
+        }
+
+        if ($expectedPeriodDays !== null && $expectedPeriodDays <= 0) {
+            response()->json([
+                'success' => false,
+                'message' => 'Expected period must be a positive number of days',
+                'error' => 'invalid_input',
+            ], 400);
+            return;
+        }
+
+        if ($yellowAfterDays < 0 || $redAfterDays < 0 || $redAfterDays < $yellowAfterDays) {
+            response()->json([
+                'success' => false,
+                'message' => 'Severity thresholds are invalid',
+                'error' => 'invalid_input',
+            ], 400);
+            return;
+        }
+
+        if ($desiredDate !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $desiredDate)) {
+            response()->json([
+                'success' => false,
+                'message' => 'Desired date must use YYYY-MM-DD format',
+                'error' => 'invalid_input',
+            ], 400);
+            return;
+        }
+
+        db()->update('reminders')->params([
+            'title' => $title,
+            'desired_date' => $desiredDate !== '' ? $desiredDate : null,
+            'expected_period_days' => $expectedPeriodDays,
+            'yellow_after_days' => $yellowAfterDays,
+            'red_after_days' => $redAfterDays,
+        ])->where('id', (int) $id)->where('user_id', $userId)->execute();
+
+        $updated = findReminderForUser($id, $userId);
+
+        response()->json([
+            'success' => true,
+            'message' => 'Reminder updated',
+            'reminder' => reminderWithStats($updated),
+        ], 200);
+    },
+]);
+
+app()->delete('/reminders/{id}', [
+    'middleware' => 'bearer',
+    function ($id) {
+        $userId = authenticatedUserId();
+        $reminder = findReminderForUser($id, $userId);
+
+        if (!$reminder) {
+            response()->json([
+                'success' => false,
+                'message' => 'Reminder not found',
+                'error' => 'not_found',
+            ], 404);
+            return;
+        }
+
+        db()->delete('reminder_completions')->where('reminder_id', (int) $id)->where('user_id', $userId)->execute();
+        db()->delete('reminders')->where('id', (int) $id)->where('user_id', $userId)->execute();
+
+        response()->json([
+            'success' => true,
+            'message' => 'Reminder deleted',
+        ], 200);
+    },
+]);
+
+app()->post('/reminders/{id}/complete', [
+    'middleware' => 'bearer',
+    function ($id) {
+        $userId = authenticatedUserId();
+        $reminder = findReminderForUser($id, $userId);
+
+        if (!$reminder) {
+            response()->json([
+                'success' => false,
+                'message' => 'Reminder not found',
+                'error' => 'not_found',
+            ], 404);
+            return;
+        }
+
+        $completedAt = date('Y-m-d H:i:s');
+
+        db()->insert('reminder_completions')->params([
+            'reminder_id' => (int) $id,
+            'user_id' => $userId,
+            'completed_at' => $completedAt,
+        ])->execute();
+
+        $latest = findReminderForUser($id, $userId);
+
+        response()->json([
+            'success' => true,
+            'message' => 'Reminder marked as completed',
+            'reminder' => reminderWithStats($latest),
+        ], 201);
+    },
+]);
+
+app()->get('/reminders/{id}/completions', [
+    'middleware' => 'bearer',
+    function ($id) {
+        $userId = authenticatedUserId();
+        $reminder = findReminderForUser($id, $userId);
+
+        if (!$reminder) {
+            response()->json([
+                'success' => false,
+                'message' => 'Reminder not found',
+                'error' => 'not_found',
+            ], 404);
+            return;
+        }
+
+        $completions = db()
+            ->select('reminder_completions')
+            ->where('reminder_id', (int) $id)
+            ->where('user_id', $userId)
+            ->orderBy('completed_at', 'DESC')
+            ->get();
+
+        response()->json([
+            'success' => true,
+            'completions' => $completions,
+        ], 200);
+    },
+]);
 
 app()->run();
 

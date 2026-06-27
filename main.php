@@ -3,426 +3,419 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remindy - Login</title>
+    <title>Remindy</title>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
         body {
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
             min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 1rem;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(120deg, #e9f5ff 0%, #f9f6ef 100%);
+            color: #1c2a38;
         }
-        .container {
-            max-width: 400px;
-            width: 100%;
+        .page {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 20px;
         }
         .card {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            padding: 2rem;
+            background: #fff;
+            border-radius: 14px;
+            border: 1px solid #dce6ee;
+            box-shadow: 0 12px 30px rgba(30, 70, 100, 0.08);
+            padding: 18px;
+            margin-bottom: 16px;
         }
-        h1 {
-            font-size: 1.75rem;
-            font-weight: 700;
-            color: #1f2937;
-            margin-bottom: 1.5rem;
-            text-align: center;
-        }
-        .form-group {
-            margin-bottom: 1.25rem;
-        }
-        label {
-            display: block;
-            font-size: 0.875rem;
-            font-weight: 600;
-            color: #374151;
-            margin-bottom: 0.5rem;
-        }
-        input[type="email"],
-        input[type="password"],
-        input[type="text"] {
-            width: 100%;
-            padding: 0.75rem 1rem;
-            border: 2px solid #e5e7eb;
-            border-radius: 8px;
-            font-size: 1rem;
-            color: #1f2937;
-            transition: all 0.2s;
-        }
-        input:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-        .form-group.register-group {
-            display: none;
-        }
-        .btn {
-            width: 100%;
-            padding: 0.875rem 1rem;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        .btn:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
-        }
-        .btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-        .btn-secondary {
-            background: #e5e7eb;
-            color: #1f2937;
-            margin-top: 0.5rem;
-        }
-        .btn-secondary:hover:not(:disabled) {
-            background: #d1d5db;
-        }
-        .link-toggle {
-            text-align: center;
-            font-size: 0.875rem;
-            color: #6b7280;
-            margin-top: 1rem;
-        }
-        .link-toggle a {
-            color: #667eea;
-            text-decoration: none;
-            font-weight: 600;
-            cursor: pointer;
-        }
-        .link-toggle a:hover {
-            text-decoration: underline;
-        }
-        .alert {
-            padding: 1rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-            font-size: 0.875rem;
-            line-height: 1.5;
-        }
-        .alert-error {
-            background: #fee2e2;
-            color: #991b1b;
-            border: 1px solid #fecaca;
-        }
-        .alert-success {
-            background: #dcfce7;
-            color: #15803d;
-            border: 1px solid #86efac;
-        }
-        .user-panel {
-            display: none;
-        }
-        .user-info {
-            background: #f9fafb;
-            padding: 1.5rem;
-            border-radius: 8px;
-            margin-bottom: 1.5rem;
-        }
-        .user-info h2 {
-            font-size: 1.25rem;
-            font-weight: 700;
-            color: #1f2937;
-            margin-bottom: 1rem;
-        }
-        .user-field {
+        h1, h2, h3 { margin-top: 0; }
+        .row {
             display: flex;
-            justify-content: space-between;
-            padding: 0.75rem 0;
-            border-bottom: 1px solid #e5e7eb;
-            font-size: 0.875rem;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
         }
-        .user-field:last-child {
-            border-bottom: none;
+        .row > div { flex: 1 1 180px; }
+        label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+        input, button {
+            width: 100%;
+            padding: 9px 10px;
+            border-radius: 8px;
+            border: 1px solid #c7d6e2;
+            font-size: 14px;
         }
-        .user-field strong {
-            color: #6b7280;
+        button {
+            border: none;
+            cursor: pointer;
+            background: #0e7490;
+            color: #fff;
             font-weight: 600;
         }
-        .user-field span {
-            color: #1f2937;
-            word-break: break-all;
+        .btn-muted { background: #64748b; }
+        .btn-danger { background: #b91c1c; }
+        .btn-ok { background: #15803d; }
+        .small { font-size: 12px; color: #526473; }
+        .hidden { display: none; }
+        .msg {
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            font-size: 14px;
         }
-        .loading {
-            opacity: 0.5;
-            pointer-events: none;
+        .msg-error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+        .msg-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .reminder-item {
+            border: 1px solid #d6e3ec;
+            border-left: 8px solid #94a3b8;
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 10px;
+            background: #fff;
+        }
+        .sev-green { border-left-color: #16a34a; }
+        .sev-yellow { border-left-color: #ca8a04; background: #fffbeb; }
+        .sev-red { border-left-color: #dc2626; background: #fef2f2; }
+        .actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        .actions button { width: auto; padding: 8px 12px; }
+        @media (max-width: 720px) {
+            .page { padding: 12px; }
+            .row > div { flex: 1 1 100%; }
         }
     </style>
 </head>
 <body>
+<div class="page">
+    <div id="globalMessage"></div>
 
-<div class="container">
-    <div class="card">
-        <div id="loginPanel">
-            <h1>Remindy</h1>
-            <div id="message"></div>
+    <section id="authPanel" class="card">
+        <h1>Remindy</h1>
+        <p class="small">Log in or register to manage your personal reminders.</p>
 
-            <form id="loginForm">
-                <div class="form-group">
-                    <label for="email">Email</label>
-                    <input type="email" id="email" name="email" required>
-                </div>
-                <div class="form-group">
-                    <label for="password">Password</label>
-                    <input type="password" id="password" name="password" required>
-                </div>
-                <button type="submit" class="btn" id="loginBtn">Sign in</button>
-            </form>
-
-            <form id="registerForm" style="display: none;">
-                <div class="form-group">
-                    <label for="regUsername">Username</label>
-                    <input type="text" id="regUsername" name="username" required>
-                </div>
-                <div class="form-group">
-                    <label for="regEmail">Email</label>
-                    <input type="email" id="regEmail" name="email" required>
-                </div>
-                <div class="form-group">
-                    <label for="regPassword">Password</label>
-                    <input type="password" id="regPassword" name="password" required minlength="8">
-                </div>
-                <div class="form-group">
-                    <label for="regPasswordConfirm">Confirm Password</label>
-                    <input type="password" id="regPasswordConfirm" name="password_confirm" required minlength="8">
-                </div>
-                <button type="submit" class="btn" id="registerBtn">Create account</button>
-            </form>
-
-            <div class="link-toggle">
-                <span id="toggleText">Don't have an account? <a id="toggleLink" href="#">Sign up</a></span>
+        <div class="row">
+            <div>
+                <label for="authEmail">Email</label>
+                <input id="authEmail" type="email" required>
+            </div>
+            <div>
+                <label for="authPassword">Password</label>
+                <input id="authPassword" type="password" required>
+            </div>
+            <div id="usernameField" class="hidden">
+                <label for="authUsername">Username</label>
+                <input id="authUsername" type="text">
             </div>
         </div>
 
-        <div id="userPanel" class="user-panel">
-            <h1>Welcome!</h1>
-            <div id="message2"></div>
-            <div class="user-info" id="userInfo">
-                <!-- User data will be populated here -->
-            </div>
-            <button id="logoutBtn" class="btn btn-secondary">Sign out</button>
+        <div class="actions">
+            <button id="loginBtn">Login</button>
+            <button id="registerBtn" class="btn-muted">Register Mode</button>
+            <button id="submitRegisterBtn" class="hidden">Create Account</button>
         </div>
-    </div>
+    </section>
+
+    <section id="appPanel" class="hidden">
+        <div class="card">
+            <h2>Account</h2>
+            <div id="userInfo" class="small"></div>
+            <div class="actions">
+                <button id="refreshBtn" class="btn-muted">Refresh</button>
+                <button id="logoutBtn" class="btn-danger">Logout</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Create Reminder</h2>
+            <div class="row">
+                <div>
+                    <label for="rTitle">Title</label>
+                    <input id="rTitle" type="text" placeholder="water plants">
+                </div>
+                <div>
+                    <label for="rExpected">Expected period (days)</label>
+                    <input id="rExpected" type="number" min="1" placeholder="3">
+                </div>
+                <div>
+                    <label for="rDesiredDate">Desired date</label>
+                    <input id="rDesiredDate" type="date">
+                </div>
+            </div>
+            <div class="row">
+                <div>
+                    <label for="rYellow">Yellow after days</label>
+                    <input id="rYellow" type="number" min="0" value="2">
+                </div>
+                <div>
+                    <label for="rRed">Red after days</label>
+                    <input id="rRed" type="number" min="0" value="5">
+                </div>
+                <div>
+                    <label>&nbsp;</label>
+                    <button id="createReminderBtn">Add Reminder</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Your Reminders</h2>
+            <div id="remindersList"></div>
+        </div>
+    </section>
 </div>
 
 <script>
-$(document).ready(function() {
-    // Get stored token
+$(function () {
+    let registerMode = false;
+
     const token = localStorage.getItem('access_token');
-    
-    // If token exists, try to load user data
     if (token) {
-        loadUser();
+        bootApp();
     }
 
-    // Toggle between login and register
-    $('#toggleLink').click(function(e) {
-        e.preventDefault();
-        $('#loginForm').toggle();
-        $('#registerForm').toggle();
-        $('#toggleText').html($('#loginForm').is(':visible') 
-            ? "Don't have an account? <a id=\"toggleLink\" href=\"#\">Sign up</a>" 
-            : "Already have an account? <a id=\"toggleLink\" href=\"#\">Sign in</a>");
-        $('#toggleLink').click(arguments.callee);
-        clearMessages();
+    $('#registerBtn').on('click', function () {
+        registerMode = !registerMode;
+        $('#usernameField').toggleClass('hidden', !registerMode);
+        $('#submitRegisterBtn').toggleClass('hidden', !registerMode);
+        $('#loginBtn').toggleClass('hidden', registerMode);
+        $('#registerBtn').text(registerMode ? 'Login Mode' : 'Register Mode');
+        clearMessage();
     });
 
-    // Login form submission
-    $('#loginForm').on('submit', function(e) {
-        e.preventDefault();
-        const email = $('#email').val();
-        const password = $('#password').val();
-
-        $.ajax({
-            url: '/login',
-            type: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({ email, password }),
-            dataType: 'json',
-            beforeSend: function() {
-                $('#loginBtn').prop('disabled', true).text('Signing in...');
-                clearMessages();
-            },
-            success: function(response) {
-                if (response.success) {
-                    // Store token
-                    localStorage.setItem('access_token', response.access_token);
-                    if (response.refresh_token) {
-                        localStorage.setItem('refresh_token', response.refresh_token);
-                    }
-                    // Load user data
-                    loadUser();
-                } else {
-                    showError(response.message || 'Login failed');
-                }
-            },
-            error: function(xhr) {
-                const response = xhr.responseJSON;
-                showError(response?.message || 'An error occurred');
-            },
-            complete: function() {
-                $('#loginBtn').prop('disabled', false).text('Sign in');
-            }
-        });
+    $('#loginBtn').on('click', async function () {
+        try {
+            const payload = {
+                email: $('#authEmail').val().trim(),
+                password: $('#authPassword').val()
+            };
+            const res = await api('/login', 'POST', payload, false);
+            onAuthSuccess(res);
+        } catch (e) {
+            showError(e.message || 'Login failed');
+        }
     });
 
-    // Register form submission
-    $('#registerForm').on('submit', function(e) {
-        e.preventDefault();
-        const username = $('#regUsername').val();
-        const email = $('#regEmail').val();
-        const password = $('#regPassword').val();
-        const password_confirm = $('#regPasswordConfirm').val();
+    $('#submitRegisterBtn').on('click', async function () {
+        try {
+            const password = $('#authPassword').val();
+            const payload = {
+                username: $('#authUsername').val().trim(),
+                email: $('#authEmail').val().trim(),
+                password: password,
+                password_confirm: password
+            };
+            const res = await api('/register', 'POST', payload, false);
+            onAuthSuccess(res);
+        } catch (e) {
+            showError(e.message || 'Registration failed');
+        }
+    });
 
-        if (password !== password_confirm) {
-            showError('Passwords do not match');
+    $('#logoutBtn').on('click', function () {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        $('#appPanel').addClass('hidden');
+        $('#authPanel').removeClass('hidden');
+        showSuccess('Logged out');
+    });
+
+    $('#refreshBtn').on('click', function () {
+        bootApp();
+    });
+
+    $('#createReminderBtn').on('click', async function () {
+        try {
+            const payload = {
+                title: $('#rTitle').val().trim(),
+                expected_period_days: $('#rExpected').val() || null,
+                desired_date: $('#rDesiredDate').val() || null,
+                yellow_after_days: $('#rYellow').val() || 2,
+                red_after_days: $('#rRed').val() || 5
+            };
+
+            await api('/reminders', 'POST', payload, true);
+            $('#rTitle').val('');
+            $('#rExpected').val('');
+            $('#rDesiredDate').val('');
+            showSuccess('Reminder created');
+            await loadReminders();
+        } catch (e) {
+            showError(e.message || 'Failed to create reminder');
+        }
+    });
+
+    $('#remindersList').on('click', '.complete-btn', async function () {
+        const id = $(this).data('id');
+        try {
+            await api('/reminders/' + id + '/complete', 'POST', {}, true);
+            showSuccess('Reminder completed');
+            await loadReminders();
+        } catch (e) {
+            showError(e.message || 'Failed to complete reminder');
+        }
+    });
+
+    $('#remindersList').on('click', '.delete-btn', async function () {
+        const id = $(this).data('id');
+        if (!confirm('Delete this reminder?')) {
+            return;
+        }
+        try {
+            await api('/reminders/' + id, 'DELETE', null, true);
+            showSuccess('Reminder deleted');
+            await loadReminders();
+        } catch (e) {
+            showError(e.message || 'Failed to delete reminder');
+        }
+    });
+
+    $('#remindersList').on('click', '.edit-btn', async function () {
+        const id = $(this).data('id');
+        const title = prompt('New title (leave empty to keep current):');
+        const expected = prompt('Expected period in days (empty = none):');
+        const desired = prompt('Desired date YYYY-MM-DD (empty = none):');
+        const yellow = prompt('Yellow threshold in days:');
+        const red = prompt('Red threshold in days:');
+
+        const payload = {};
+        if (title !== null && title.trim() !== '') payload.title = title.trim();
+        if (expected !== null) payload.expected_period_days = expected.trim() === '' ? '' : Number(expected);
+        if (desired !== null) payload.desired_date = desired.trim();
+        if (yellow !== null && yellow.trim() !== '') payload.yellow_after_days = Number(yellow);
+        if (red !== null && red.trim() !== '') payload.red_after_days = Number(red);
+
+        try {
+            await api('/reminders/' + id, 'PUT', payload, true);
+            showSuccess('Reminder updated');
+            await loadReminders();
+        } catch (e) {
+            showError(e.message || 'Failed to update reminder');
+        }
+    });
+
+    async function bootApp() {
+        try {
+            const me = await api('/me', 'GET', null, true);
+            $('#userInfo').text(
+                'Logged in as ' + me.user.username + ' (' + me.user.email + ')'
+            );
+            $('#authPanel').addClass('hidden');
+            $('#appPanel').removeClass('hidden');
+            await loadReminders();
+            clearMessage();
+        } catch (e) {
+            localStorage.removeItem('access_token');
+            $('#appPanel').addClass('hidden');
+            $('#authPanel').removeClass('hidden');
+            showError('Session expired. Please login again.');
+        }
+    }
+
+    async function loadReminders() {
+        const res = await api('/reminders', 'GET', null, true);
+        const list = res.reminders || [];
+
+        if (!list.length) {
+            $('#remindersList').html('<p class="small">No reminders yet.</p>');
             return;
         }
 
-        $.ajax({
-            url: '/register',
-            type: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({ username, email, password, password_confirm }),
-            dataType: 'json',
-            beforeSend: function() {
-                $('#registerBtn').prop('disabled', true).text('Creating account...');
-                clearMessages();
-            },
-            success: function(response) {
-                if (response.success) {
-                    localStorage.setItem('access_token', response.access_token);
-                    if (response.refresh_token) {
-                        localStorage.setItem('refresh_token', response.refresh_token);
-                    }
-                    loadUser();
-                } else {
-                    showError(response.message || 'Registration failed');
-                }
-            },
-            error: function(xhr) {
-                const response = xhr.responseJSON;
-                showError(response?.message || 'An error occurred');
-            },
-            complete: function() {
-                $('#registerBtn').prop('disabled', false).text('Create account');
-            }
-        });
-    });
+        const html = list.map(function (r) {
+            const sevClass = r.current_severity === 'red'
+                ? 'sev-red'
+                : (r.current_severity === 'yellow' ? 'sev-yellow' : 'sev-green');
 
-    // Logout
-    $('#logoutBtn').click(function() {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        $('#loginPanel').show();
-        $('#userPanel').hide();
-        $('#loginForm')[0].reset();
-        $('#registerForm')[0].reset();
-        $('#loginForm').show();
-        $('#registerForm').hide();
-        clearMessages();
-    });
+            return `
+                <div class="reminder-item ${sevClass}">
+                    <h3>${escapeHtml(r.title)}</h3>
+                    <div class="small">Current severity: <strong>${escapeHtml(r.current_severity)}</strong></div>
+                    <div class="small">Average severity: <strong>${escapeHtml(r.average_severity || 'n/a')}</strong></div>
+                    <div class="small">Last completed: ${escapeHtml(formatDateTime(r.last_completed_at))}</div>
+                    <div class="small">Days since last completion: ${escapeHtml(formatNumber(r.days_since_last_completion))}</div>
+                    <div class="small">Desired date: ${escapeHtml(r.desired_date || 'none')}</div>
+                    <div class="small">Expected period: ${escapeHtml(formatNumber(r.expected_period_days))} day(s)</div>
+                    <div class="small">Average between completions: ${escapeHtml(formatNumber(r.average_days_between_completions))} day(s)</div>
+                    <div class="small">Thresholds: yellow ${escapeHtml(String(r.yellow_after_days))} / red ${escapeHtml(String(r.red_after_days))}</div>
+                    <div class="actions">
+                        <button class="btn-ok complete-btn" data-id="${r.id}">Complete</button>
+                        <button class="btn-muted edit-btn" data-id="${r.id}">Edit</button>
+                        <button class="btn-danger delete-btn" data-id="${r.id}">Delete</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
 
-    function loadUser() {
-        const token = localStorage.getItem('access_token');
-        if (!token) {
-            return;
+        $('#remindersList').html(html);
+    }
+
+    function onAuthSuccess(res) {
+        localStorage.setItem('access_token', res.access_token);
+        if (res.refresh_token) {
+            localStorage.setItem('refresh_token', res.refresh_token);
         }
+        bootApp();
+    }
 
-        $.ajax({
-            url: '/me',
-            type: 'GET',
-            headers: {
-                'Authorization': 'Bearer ' + token
-            },
-            dataType: 'json',
-            success: function(response) {
-                if (response.success && response.user) {
-                    displayUser(response.user);
-                    $('#loginPanel').hide();
-                    $('#userPanel').show();
-                } else {
-                    handleAuthError();
+    function api(url, method, payload, withAuth) {
+        return new Promise(function (resolve, reject) {
+            $.ajax({
+                url: url,
+                type: method,
+                data: payload ? JSON.stringify(payload) : undefined,
+                contentType: payload ? 'application/json' : undefined,
+                dataType: 'json',
+                headers: withAuth ? { Authorization: 'Bearer ' + localStorage.getItem('access_token') } : {},
+                success: function (response) {
+                    if (response && response.success) {
+                        resolve(response);
+                        return;
+                    }
+                    reject(new Error(response && response.message ? response.message : 'Request failed'));
+                },
+                error: function (xhr) {
+                    const message = xhr.responseJSON && xhr.responseJSON.message
+                        ? xhr.responseJSON.message
+                        : 'Request failed';
+                    reject(new Error(message));
                 }
-            },
-            error: function() {
-                handleAuthError();
-            }
+            });
         });
-    }
-
-    function displayUser(user) {
-        const html = `
-            <div class="user-field">
-                <strong>ID:</strong>
-                <span>${escapeHtml(user.id)}</span>
-            </div>
-            <div class="user-field">
-                <strong>Username:</strong>
-                <span>${escapeHtml(user.username)}</span>
-            </div>
-            <div class="user-field">
-                <strong>Email:</strong>
-                <span>${escapeHtml(user.email)}</span>
-            </div>
-            <div class="user-field">
-                <strong>Member Since:</strong>
-                <span>${user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}</span>
-            </div>
-        `;
-        $('#userInfo').html(html);
-        showSuccess('Successfully logged in!', '#message2');
-    }
-
-    function handleAuthError() {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        $('#loginPanel').show();
-        $('#userPanel').hide();
-        showError('Session expired. Please log in again.');
     }
 
     function showError(message) {
-        $('#message').html(`<div class="alert alert-error">${escapeHtml(message)}</div>`);
+        $('#globalMessage').html('<div class="msg msg-error">' + escapeHtml(message) + '</div>');
     }
 
-    function showSuccess(message, target = '#message') {
-        $(target).html(`<div class="alert alert-success">${escapeHtml(message)}</div>`);
+    function showSuccess(message) {
+        $('#globalMessage').html('<div class="msg msg-success">' + escapeHtml(message) + '</div>');
     }
 
-    function clearMessages() {
-        $('#message').html('');
-        $('#message2').html('');
+    function clearMessage() {
+        $('#globalMessage').html('');
+    }
+
+    function formatDateTime(value) {
+        if (!value) return 'never';
+        const date = new Date(value.replace(' ', 'T'));
+        if (Number.isNaN(date.getTime())) return value;
+        return date.toLocaleString();
+    }
+
+    function formatNumber(value) {
+        return value === null || value === undefined ? 'n/a' : String(value);
     }
 
     function escapeHtml(text) {
-        const map = {
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#039;'
-        };
-        return String(text).replace(/[&<>"']/g, m => map[m]);
+        return String(text)
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
     }
 });
 </script>
-
 </body>
 </html>
