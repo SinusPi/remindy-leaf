@@ -57,8 +57,6 @@ $schema->manageTable('reminders', [
         expected_period_days INT UNSIGNED NULL,
         yellow_after_days INT UNSIGNED NOT NULL DEFAULT 2,
         red_after_days INT UNSIGNED NOT NULL DEFAULT 5,
-        lower_yellow_below_days INT UNSIGNED NOT NULL DEFAULT 2,
-        lower_red_below_days INT UNSIGNED NOT NULL DEFAULT 1,
         created_at DATETIME NULL,
         updated_at DATETIME NULL,
         INDEX idx_reminders_user (user_id)
