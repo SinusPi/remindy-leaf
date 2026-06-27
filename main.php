@@ -294,10 +294,10 @@
                 <div class="small">Current severity: <strong class="r-current-severity"></strong></div>
                 <div class="small">Average severity: <strong class="r-average-severity"></strong></div>
                 <div class="small">Last completed: <span class="r-last-completed"></span></div>
-                <div class="small">Seconds since last completion: <span class="r-seconds-since"></span></div>
+                <div class="small">Time since last completion: <span class="r-seconds-since"></span></div>
                 <div class="small">Desired date: <span class="r-desired-date"></span></div>
-                <div class="small">Expected period: <span class="r-expected-period"></span> second(s)</div>
-                <div class="small">Average between completions: <span class="r-average-between"></span> second(s)</div>
+                <div class="small">Expected period: <span class="r-expected-period"></span></div>
+                <div class="small">Average between completions: <span class="r-average-between"></span></div>
                 <div class="small">Upper thresholds: yellow <span class="r-yellow"></span> / red <span class="r-red"></span></div>
                 <div class="small">Average lower thresholds: yellow below <span class="r-lower-yellow"></span> / red below <span class="r-lower-red"></span></div>
                 <div class="actions">
