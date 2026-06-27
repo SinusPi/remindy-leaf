@@ -15,6 +15,7 @@ $(function () {
     $('#registerBtn').on('click', function () {
         registerMode = !registerMode;
         $('#usernameField').toggleClass('hidden', !registerMode);
+        $('#passwordConfirmField').toggleClass('hidden', !registerMode);
         $('#submitRegisterBtn').toggleClass('hidden', !registerMode);
         $('#loginBtn').toggleClass('hidden', registerMode);
         $('#registerBtn').text(registerMode ? 'Login Mode' : 'Register Mode');
@@ -41,7 +42,7 @@ $(function () {
                 username: $('#authUsernameLogin').val().trim(),
                 email: $('#authEmail').val().trim(),
                 password: password,
-                password_confirm: password
+                password_confirm: $('#authPasswordConfirm').val()
             };
             const res = await api('/register', 'POST', payload, false);
             onAuthSuccess(res);

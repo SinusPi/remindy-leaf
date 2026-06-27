@@ -190,6 +190,10 @@
                 <label for="authPassword">Password</label>
                 <input id="authPassword" type="password" required>
             </div>
+            <div id="passwordConfirmField" class="hidden">
+                <label for="authPasswordConfirm">Confirm Password</label>
+                <input id="authPasswordConfirm" type="password">
+            </div>
             <div id="usernameField" class="hidden">
                 <label for="authEmail">Email</label>
                 <input id="authEmail" type="email">
