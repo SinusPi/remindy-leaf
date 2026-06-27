@@ -121,10 +121,10 @@ mailer()->connect([
 ]);
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
-app()->get('/', fn() => response()->json(['message' => 'Remindy API'], 200));
+app()->get('/', fn() => response()->page('main.php',200));
 
 // ── Dashboard (protected) ────────────────────────────────────────────────────
-app()->get('/api/user', [
+app()->get('/me', [
     'middleware' => 'bearer',
     function () {
         $user = getAuthenticatedUser();
@@ -150,7 +150,7 @@ app()->get('/api/user', [
 ]);
 
 // ── Login ─────────────────────────────────────────────────────────────────────
-app()->post('/api/login', function () {
+app()->post('/login', function () {
     $data = request()->get(['email', 'password']);
 
     if (!$data['email'] || !$data['password']) {
@@ -188,7 +188,7 @@ app()->post('/api/login', function () {
 });
 
 // ── Register ──────────────────────────────────────────────────────────────────
-app()->post('/api/register', function () {
+app()->post('/register', function () {
     $data = request()->get(['username', 'email', 'password', 'password_confirm']);
 
     if (!$data['username'] || !$data['email'] || !$data['password'] || !$data['password_confirm']) {
@@ -249,7 +249,7 @@ app()->post('/api/register', function () {
 });
 
 // ── Logout ────────────────────────────────────────────────────────────────────
-app()->post('/api/logout', [
+app()->post('/logout', [
     'middleware' => 'bearer',
     function () {
         // In a stateless JWT system, logout is handled by the client deleting the token
@@ -262,7 +262,7 @@ app()->post('/api/logout', [
 ]);
 
 // ── Forgot Password ───────────────────────────────────────────────────────────
-app()->post('/api/forgot-password', function () {
+app()->post('/forgot-password', function () {
     $email = strtolower(trim(request()->get('email') ?? ''));
 
     if (!$email) {
@@ -317,7 +317,7 @@ app()->post('/api/forgot-password', function () {
 });
 
 // ── Reset Password ────────────────────────────────────────────────────────────
-app()->post('/api/reset-password', function () {
+app()->post('/reset-password', function () {
     $data  = request()->get(['token', 'email', 'password', 'password_confirm']);
     $token = $data['token'] ?? '';
     $email = strtolower(trim($data['email'] ?? ''));
