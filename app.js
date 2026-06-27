@@ -322,14 +322,14 @@ $(function () {
             node.querySelector('.r-current-severity').textContent = r.current_severity;
             node.querySelector('.r-average-severity').textContent = r.average_severity || 'n/a';
             node.querySelector('.r-last-completed').textContent = formatDateTime(r.last_completed_at);
-            node.querySelector('.r-seconds-since').textContent = formatNumber(r.seconds_since_last_completion);
+            node.querySelector('.r-seconds-since').textContent = formatDuration(r.seconds_since_last_completion);
             node.querySelector('.r-desired-date').textContent = r.desired_date || 'none';
-            node.querySelector('.r-expected-period').textContent = formatNumber(r.expected_period_seconds);
-            node.querySelector('.r-average-between').textContent = formatNumber(r.average_seconds_between_completions);
-            node.querySelector('.r-yellow').textContent = String(r.yellow_after_seconds);
-            node.querySelector('.r-red').textContent = String(r.red_after_seconds);
-            node.querySelector('.r-lower-yellow').textContent = formatNumber(r.lower_yellow_below_seconds);
-            node.querySelector('.r-lower-red').textContent = formatNumber(r.lower_red_below_seconds);
+            node.querySelector('.r-expected-period').textContent = formatDuration(r.expected_period_seconds);
+            node.querySelector('.r-average-between').textContent = formatDuration(r.average_seconds_between_completions);
+            node.querySelector('.r-yellow').textContent = formatDuration(r.yellow_after_seconds);
+            node.querySelector('.r-red').textContent = formatDuration(r.red_after_seconds);
+            node.querySelector('.r-lower-yellow').textContent = formatDuration(r.lower_yellow_below_seconds);
+            node.querySelector('.r-lower-red').textContent = formatDuration(r.lower_red_below_seconds);
 
             node.querySelector('.complete-btn').dataset.id = String(r.id);
             node.querySelector('.history-btn').dataset.id = String(r.id);
@@ -454,6 +454,32 @@ $(function () {
         const date = new Date(value.replace(' ', 'T'));
         if (Number.isNaN(date.getTime())) return value;
         return date.toLocaleString();
+    }
+
+    function formatDuration(value) {
+        if (value === null || value === undefined) return 'n/a';
+
+        const seconds = Number(value);
+        if (Number.isNaN(seconds)) return String(value);
+
+        const totalSeconds = Math.max(0, Math.round(seconds));
+
+        if (totalSeconds < 3600) {
+            const minutes = Math.floor(totalSeconds / 60);
+            const remainder = totalSeconds % 60;
+            return String(minutes).padStart(2, '0') + ':' + String(remainder).padStart(2, '0');
+        }
+
+        if (totalSeconds < 86400) {
+            return formatDurationUnit(totalSeconds / 3600, 'hour');
+        }
+
+        return formatDurationUnit(totalSeconds / 86400, 'day');
+    }
+
+    function formatDurationUnit(value, unit) {
+        const rounded = Math.round(value);
+        return String(rounded) + ' ' + unit + (rounded === 1 ? '' : 's');
     }
 
     function formatNumber(value) {
