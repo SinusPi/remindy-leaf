@@ -279,6 +279,27 @@
             </div>
             <div id="remindersList"></div>
         </div>
+
+        <template id="reminderItemTemplate">
+            <div class="reminder-item">
+                <h3 class="r-title"></h3>
+                <div class="small">Current severity: <strong class="r-current-severity"></strong></div>
+                <div class="small">Average severity: <strong class="r-average-severity"></strong></div>
+                <div class="small">Last completed: <span class="r-last-completed"></span></div>
+                <div class="small">Days since last completion: <span class="r-days-since"></span></div>
+                <div class="small">Desired date: <span class="r-desired-date"></span></div>
+                <div class="small">Expected period: <span class="r-expected-period"></span> day(s)</div>
+                <div class="small">Average between completions: <span class="r-average-between"></span> day(s)</div>
+                <div class="small">Thresholds: yellow <span class="r-yellow"></span> / red <span class="r-red"></span></div>
+                <div class="actions">
+                    <button class="btn-ok complete-btn" type="button">Complete</button>
+                    <button class="btn-muted history-btn" type="button">History</button>
+                    <button class="btn-muted edit-btn" type="button">Edit</button>
+                    <button class="btn-danger delete-btn" type="button">Delete</button>
+                </div>
+                <div class="history hidden r-history"></div>
+            </div>
+        </template>
     </section>
 
     <section id="completeModal" class="modal hidden" aria-hidden="true">

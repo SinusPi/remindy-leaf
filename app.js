@@ -301,34 +301,41 @@ $(function () {
             return;
         }
 
-        const html = list.map(function (r) {
+        const template = document.getElementById('reminderItemTemplate');
+        const listContainer = document.getElementById('remindersList');
+        const fragment = document.createDocumentFragment();
+
+        list.forEach(function (r) {
+            const node = template.content.firstElementChild.cloneNode(true);
             const sevClass = r.current_severity === 'red'
                 ? 'sev-red'
                 : (r.current_severity === 'yellow' ? 'sev-yellow' : 'sev-green');
 
-            return `
-                <div class="reminder-item ${sevClass}">
-                    <h3>${escapeHtml(r.title)}</h3>
-                    <div class="small">Current severity: <strong>${escapeHtml(r.current_severity)}</strong></div>
-                    <div class="small">Average severity: <strong>${escapeHtml(r.average_severity || 'n/a')}</strong></div>
-                    <div class="small">Last completed: ${escapeHtml(formatDateTime(r.last_completed_at))}</div>
-                    <div class="small">Days since last completion: ${escapeHtml(formatNumber(r.days_since_last_completion))}</div>
-                    <div class="small">Desired date: ${escapeHtml(r.desired_date || 'none')}</div>
-                    <div class="small">Expected period: ${escapeHtml(formatNumber(r.expected_period_days))} day(s)</div>
-                    <div class="small">Average between completions: ${escapeHtml(formatNumber(r.average_days_between_completions))} day(s)</div>
-                    <div class="small">Thresholds: yellow ${escapeHtml(String(r.yellow_after_days))} / red ${escapeHtml(String(r.red_after_days))}</div>
-                    <div class="actions">
-                        <button class="btn-ok complete-btn" data-id="${r.id}">Complete</button>
-                        <button class="btn-muted history-btn" data-id="${r.id}">History</button>
-                        <button class="btn-muted edit-btn" data-id="${r.id}">Edit</button>
-                        <button class="btn-danger delete-btn" data-id="${r.id}">Delete</button>
-                    </div>
-                    <div id="history-${r.id}" class="history hidden"></div>
-                </div>
-            `;
-        }).join('');
+            node.classList.add(sevClass);
+            node.querySelector('.r-title').textContent = r.title;
+            node.querySelector('.r-current-severity').textContent = r.current_severity;
+            node.querySelector('.r-average-severity').textContent = r.average_severity || 'n/a';
+            node.querySelector('.r-last-completed').textContent = formatDateTime(r.last_completed_at);
+            node.querySelector('.r-days-since').textContent = formatNumber(r.days_since_last_completion);
+            node.querySelector('.r-desired-date').textContent = r.desired_date || 'none';
+            node.querySelector('.r-expected-period').textContent = formatNumber(r.expected_period_days);
+            node.querySelector('.r-average-between').textContent = formatNumber(r.average_days_between_completions);
+            node.querySelector('.r-yellow').textContent = String(r.yellow_after_days);
+            node.querySelector('.r-red').textContent = String(r.red_after_days);
 
-        $('#remindersList').html(html);
+            node.querySelector('.complete-btn').dataset.id = String(r.id);
+            node.querySelector('.history-btn').dataset.id = String(r.id);
+            node.querySelector('.edit-btn').dataset.id = String(r.id);
+            node.querySelector('.delete-btn').dataset.id = String(r.id);
+
+            const historyNode = node.querySelector('.r-history');
+            historyNode.id = 'history-' + r.id;
+
+            fragment.appendChild(node);
+        });
+
+        listContainer.innerHTML = '';
+        listContainer.appendChild(fragment);
     }
 
     function onAuthSuccess(res) {
