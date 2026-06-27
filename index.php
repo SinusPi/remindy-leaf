@@ -26,77 +26,7 @@ const SECONDS_PER_DAY = 86400;
 auth()->autoConnect();
 db()->autoConnect();
 
-// ─── Schema Management ────────────────────────────────────────────────────────
-$schema = new \SinusPi\Migri\Migri(db()->connection());
-
-$schema->manageTable('users', [
-    '1' => "CREATE TABLE users (
-        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        username VARCHAR(100) NOT NULL,
-        email VARCHAR(255) NOT NULL UNIQUE,
-        password VARCHAR(255) NOT NULL,
-        created_at DATETIME NULL,
-        updated_at DATETIME NULL
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-]);
-
-$schema->manageTable('password_resets', [
-    '1' => "CREATE TABLE password_resets (
-        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        email VARCHAR(255) NOT NULL,
-        token VARCHAR(64) NOT NULL,
-        expires_at DATETIME NOT NULL,
-        INDEX idx_pr_email (email)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-]);
-
-$schema->manageTable('reminders', [
-    '1' => "CREATE TABLE reminders (
-        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        user_id INT UNSIGNED NOT NULL,
-        title VARCHAR(255) NOT NULL,
-        desired_date DATE NULL,
-        expected_period_days INT UNSIGNED NULL,
-        yellow_after_days INT UNSIGNED NOT NULL DEFAULT 2,
-        red_after_days INT UNSIGNED NOT NULL DEFAULT 5,
-        created_at DATETIME NULL,
-        updated_at DATETIME NULL,
-        INDEX idx_reminders_user (user_id)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-    '2' => "ALTER TABLE reminders
-        ADD COLUMN lower_yellow_below_days INT UNSIGNED NOT NULL DEFAULT 2 AFTER red_after_days,
-        ADD COLUMN lower_red_below_days INT UNSIGNED NOT NULL DEFAULT 1 AFTER lower_yellow_below_days",
-    '3' => "ALTER TABLE reminders
-        CHANGE COLUMN expected_period_days expected_period_seconds INT UNSIGNED NULL,
-        CHANGE COLUMN yellow_after_days yellow_after_seconds INT UNSIGNED NOT NULL DEFAULT 172800,
-        CHANGE COLUMN red_after_days red_after_seconds INT UNSIGNED NOT NULL DEFAULT 432000,
-        CHANGE COLUMN lower_yellow_below_days lower_yellow_below_seconds INT UNSIGNED NOT NULL DEFAULT 172800,
-        CHANGE COLUMN lower_red_below_days lower_red_below_seconds INT UNSIGNED NOT NULL DEFAULT 86400",
-    '4' => "UPDATE reminders
-        SET expected_period_seconds = CASE
-                WHEN expected_period_seconds IS NULL THEN NULL
-                ELSE expected_period_seconds * 86400
-            END,
-            yellow_after_seconds = yellow_after_seconds * 86400,
-            red_after_seconds = red_after_seconds * 86400,
-            lower_yellow_below_seconds = lower_yellow_below_seconds * 86400,
-            lower_red_below_seconds = lower_red_below_seconds * 86400",
-]);
-
-$schema->manageTable('reminder_completions', [
-    '1' => "CREATE TABLE reminder_completions (
-        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        reminder_id INT UNSIGNED NOT NULL,
-        user_id INT UNSIGNED NOT NULL,
-        completed_at DATETIME NOT NULL,
-        created_at DATETIME NULL,
-        updated_at DATETIME NULL,
-        INDEX idx_completions_reminder (reminder_id),
-        INDEX idx_completions_user (user_id),
-        INDEX idx_completions_date (completed_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-    '2' => "ALTER TABLE reminder_completions ADD COLUMN completion_comment TEXT NULL AFTER completed_at",
-]);
+migrateSchema(db()->connection());
 
 // ─── Token Validation Middleware ──────────────────────────────────────────────
 // Static storage for decoded token data
@@ -966,3 +896,77 @@ app()->get('/reminders/{id}/completions', [
 ]);
 
 app()->run();
+
+function migrateSchema($dbConnection) {
+    $schema = new \SinusPi\Migri\Migri(db()->connection());
+
+    $schema->manageTable('users', [
+        '1' => "CREATE TABLE users (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            username VARCHAR(100) NOT NULL,
+            email VARCHAR(255) NOT NULL UNIQUE,
+            password VARCHAR(255) NOT NULL,
+            created_at DATETIME NULL,
+            updated_at DATETIME NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    ]);
+
+    $schema->manageTable('password_resets', [
+        '1' => "CREATE TABLE password_resets (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            email VARCHAR(255) NOT NULL,
+            token VARCHAR(64) NOT NULL,
+            expires_at DATETIME NOT NULL,
+            INDEX idx_pr_email (email)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    ]);
+
+    $schema->manageTable('reminders', [
+        '1' => "CREATE TABLE reminders (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            user_id INT UNSIGNED NOT NULL,
+            title VARCHAR(255) NOT NULL,
+            desired_date DATE NULL,
+            expected_period_days INT UNSIGNED NULL,
+            yellow_after_days INT UNSIGNED NOT NULL DEFAULT 2,
+            red_after_days INT UNSIGNED NOT NULL DEFAULT 5,
+            created_at DATETIME NULL,
+            updated_at DATETIME NULL,
+            INDEX idx_reminders_user (user_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        '2' => "ALTER TABLE reminders
+            ADD COLUMN lower_yellow_below_days INT UNSIGNED NOT NULL DEFAULT 2 AFTER red_after_days,
+            ADD COLUMN lower_red_below_days INT UNSIGNED NOT NULL DEFAULT 1 AFTER lower_yellow_below_days",
+        '3' => "ALTER TABLE reminders
+            CHANGE COLUMN expected_period_days expected_period_seconds INT UNSIGNED NULL,
+            CHANGE COLUMN yellow_after_days yellow_after_seconds INT UNSIGNED NOT NULL DEFAULT 172800,
+            CHANGE COLUMN red_after_days red_after_seconds INT UNSIGNED NOT NULL DEFAULT 432000,
+            CHANGE COLUMN lower_yellow_below_days lower_yellow_below_seconds INT UNSIGNED NOT NULL DEFAULT 172800,
+            CHANGE COLUMN lower_red_below_days lower_red_below_seconds INT UNSIGNED NOT NULL DEFAULT 86400",
+        '4' => "UPDATE reminders
+            SET expected_period_seconds = CASE
+                    WHEN expected_period_seconds IS NULL THEN NULL
+                    ELSE expected_period_seconds * 86400
+                END,
+                yellow_after_seconds = yellow_after_seconds * 86400,
+                red_after_seconds = red_after_seconds * 86400,
+                lower_yellow_below_seconds = lower_yellow_below_seconds * 86400,
+                lower_red_below_seconds = lower_red_below_seconds * 86400",
+    ]);
+
+    $schema->manageTable('reminder_completions', [
+        '1' => "CREATE TABLE reminder_completions (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            reminder_id INT UNSIGNED NOT NULL,
+            user_id INT UNSIGNED NOT NULL,
+            completed_at DATETIME NOT NULL,
+            created_at DATETIME NULL,
+            updated_at DATETIME NULL,
+            INDEX idx_completions_reminder (reminder_id),
+            INDEX idx_completions_user (user_id),
+            INDEX idx_completions_date (completed_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        '2' => "ALTER TABLE reminder_completions ADD COLUMN completion_comment TEXT NULL AFTER completed_at",
+    ]);
+
+}
