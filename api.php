@@ -957,16 +957,16 @@ function migrateSchema($dbConnection) {
             updated_at DATETIME NULL,
             INDEX idx_reminders_user (user_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-        '2' => "ALTER TABLE reminders
+        '1>2' => "ALTER TABLE reminders
             ADD COLUMN lower_yellow_below_days INT UNSIGNED NOT NULL DEFAULT 2 AFTER red_after_days,
             ADD COLUMN lower_red_below_days INT UNSIGNED NOT NULL DEFAULT 1 AFTER lower_yellow_below_days",
-        '3' => "ALTER TABLE reminders
+        '2>3' => "ALTER TABLE reminders
             CHANGE COLUMN expected_period_days expected_period_seconds INT UNSIGNED NULL,
             CHANGE COLUMN yellow_after_days yellow_after_seconds INT UNSIGNED NOT NULL DEFAULT 172800,
             CHANGE COLUMN red_after_days red_after_seconds INT UNSIGNED NOT NULL DEFAULT 432000,
             CHANGE COLUMN lower_yellow_below_days lower_yellow_below_seconds INT UNSIGNED NOT NULL DEFAULT 172800,
             CHANGE COLUMN lower_red_below_days lower_red_below_seconds INT UNSIGNED NOT NULL DEFAULT 86400",
-        '4' => "UPDATE reminders
+        '4>5' => "UPDATE reminders
             SET expected_period_seconds = CASE
                     WHEN expected_period_seconds IS NULL THEN NULL
                     ELSE expected_period_seconds * 86400
@@ -989,7 +989,7 @@ function migrateSchema($dbConnection) {
             INDEX idx_completions_user (user_id),
             INDEX idx_completions_date (completed_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-        '2' => "ALTER TABLE reminder_completions ADD COLUMN completion_comment TEXT NULL AFTER completed_at",
+        '1>2' => "ALTER TABLE reminder_completions ADD COLUMN completion_comment TEXT NULL AFTER completed_at",
     ]);
 
 }
