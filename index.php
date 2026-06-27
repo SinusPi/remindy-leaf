@@ -21,6 +21,8 @@ auth()->config([
     'token.lifetime' => (int) _env('TOKEN_LIFETIME', 60 * 60 * 24 * 7), // 7 days
 ]);
 
+const SECONDS_PER_DAY = 86400;
+
 auth()->autoConnect();
 db()->autoConnect();
 
@@ -64,6 +66,21 @@ $schema->manageTable('reminders', [
     '2' => "ALTER TABLE reminders
         ADD COLUMN lower_yellow_below_days INT UNSIGNED NOT NULL DEFAULT 2 AFTER red_after_days,
         ADD COLUMN lower_red_below_days INT UNSIGNED NOT NULL DEFAULT 1 AFTER lower_yellow_below_days",
+    '3' => "ALTER TABLE reminders
+        CHANGE COLUMN expected_period_days expected_period_seconds INT UNSIGNED NULL,
+        CHANGE COLUMN yellow_after_days yellow_after_seconds INT UNSIGNED NOT NULL DEFAULT 172800,
+        CHANGE COLUMN red_after_days red_after_seconds INT UNSIGNED NOT NULL DEFAULT 432000,
+        CHANGE COLUMN lower_yellow_below_days lower_yellow_below_seconds INT UNSIGNED NOT NULL DEFAULT 172800,
+        CHANGE COLUMN lower_red_below_days lower_red_below_seconds INT UNSIGNED NOT NULL DEFAULT 86400",
+    '4' => "UPDATE reminders
+        SET expected_period_seconds = CASE
+                WHEN expected_period_seconds IS NULL THEN NULL
+                ELSE expected_period_seconds * 86400
+            END,
+            yellow_after_seconds = yellow_after_seconds * 86400,
+            red_after_seconds = red_after_seconds * 86400,
+            lower_yellow_below_seconds = lower_yellow_below_seconds * 86400,
+            lower_red_below_seconds = lower_red_below_seconds * 86400",
 ]);
 
 $schema->manageTable('reminder_completions', [
@@ -142,7 +159,7 @@ function authenticatedUserId() {
     return $user ? (int) $user['id'] : null;
 }
 
-function daysDiffFromNow($dateTimeString) {
+function secondsDiffFromNow($dateTimeString) {
     if (!$dateTimeString) {
         return null;
     }
@@ -152,39 +169,63 @@ function daysDiffFromNow($dateTimeString) {
         return null;
     }
 
-    return (int) floor((time() - $timestamp) / 86400);
+    return time() - $timestamp;
 }
 
-function reminderSeverityColor($daysElapsed, $yellowAfterDays, $redAfterDays) {
-    if ($daysElapsed === null) {
+function reminderTimingSeconds(array $reminder, $secondsKey, $legacyDaysKey = null) {
+    if (array_key_exists($secondsKey, $reminder) && $reminder[$secondsKey] !== null) {
+        return (int) $reminder[$secondsKey];
+    }
+
+    if ($legacyDaysKey !== null && array_key_exists($legacyDaysKey, $reminder) && $reminder[$legacyDaysKey] !== null) {
+        return (int) $reminder[$legacyDaysKey] * SECONDS_PER_DAY;
+    }
+
+    return null;
+}
+
+function requestTimingSeconds(array $data, $secondsKey, $legacyDaysKey = null, $default = null) {
+    if (array_key_exists($secondsKey, $data) && $data[$secondsKey] !== null && $data[$secondsKey] !== '') {
+        return (int) $data[$secondsKey];
+    }
+
+    if ($legacyDaysKey !== null && array_key_exists($legacyDaysKey, $data) && $data[$legacyDaysKey] !== null && $data[$legacyDaysKey] !== '') {
+        return (int) $data[$legacyDaysKey] * SECONDS_PER_DAY;
+    }
+
+    return $default;
+}
+
+function reminderSeverityColor($secondsElapsed, $yellowAfterSeconds, $redAfterSeconds) {
+    if ($secondsElapsed === null) {
         return 'green';
     }
 
-    if ($daysElapsed >= $redAfterDays) {
+    if ($secondsElapsed >= $redAfterSeconds) {
         return 'red';
     }
 
-    if ($daysElapsed >= $yellowAfterDays) {
+    if ($secondsElapsed >= $yellowAfterSeconds) {
         return 'yellow';
     }
 
     return 'green';
 }
 
-function reminderAverageSeverityColor($averageDaysBetweenCompletions, $lowerYellowBelowDays, $lowerRedBelowDays, $yellowAfterDays, $redAfterDays) {
-    if ($averageDaysBetweenCompletions === null) {
+function reminderAverageSeverityColor($averageSecondsBetweenCompletions, $lowerYellowBelowSeconds, $lowerRedBelowSeconds, $yellowAfterSeconds, $redAfterSeconds) {
+    if ($averageSecondsBetweenCompletions === null) {
         return null;
     }
 
-    if ($averageDaysBetweenCompletions <= $lowerRedBelowDays) {
+    if ($averageSecondsBetweenCompletions <= $lowerRedBelowSeconds) {
         return 'red';
     }
 
-    if ($averageDaysBetweenCompletions <= $lowerYellowBelowDays) {
+    if ($averageSecondsBetweenCompletions <= $lowerYellowBelowSeconds) {
         return 'yellow';
     }
 
-    return reminderSeverityColor((int) floor($averageDaysBetweenCompletions), $yellowAfterDays, $redAfterDays);
+    return reminderSeverityColor((int) round($averageSecondsBetweenCompletions), $yellowAfterSeconds, $redAfterSeconds);
 }
 
 function reminderWithStats(array $reminder) {
@@ -200,15 +241,21 @@ function reminderWithStats(array $reminder) {
         $lastCompletedAt = $last['completed_at'];
     }
 
-    $daysSinceLastCompletion = daysDiffFromNow($lastCompletedAt);
-    $daysSinceDesiredDate = daysDiffFromNow($reminder['desired_date'] ? $reminder['desired_date'] . ' 00:00:00' : null);
+    $expectedPeriodSeconds = reminderTimingSeconds($reminder, 'expected_period_seconds', 'expected_period_days');
+    $yellowAfterSeconds = reminderTimingSeconds($reminder, 'yellow_after_seconds', 'yellow_after_days');
+    $redAfterSeconds = reminderTimingSeconds($reminder, 'red_after_seconds', 'red_after_days');
+    $lowerYellowBelowSeconds = reminderTimingSeconds($reminder, 'lower_yellow_below_seconds', 'lower_yellow_below_days');
+    $lowerRedBelowSeconds = reminderTimingSeconds($reminder, 'lower_red_below_seconds', 'lower_red_below_days');
 
-    $daysElapsedForSeverity = $daysSinceLastCompletion;
-    if ($daysElapsedForSeverity === null && $reminder['desired_date']) {
-        $daysElapsedForSeverity = $daysSinceDesiredDate;
+    $secondsSinceLastCompletion = secondsDiffFromNow($lastCompletedAt);
+    $secondsSinceDesiredDate = secondsDiffFromNow($reminder['desired_date'] ? $reminder['desired_date'] . ' 00:00:00' : null);
+
+    $secondsElapsedForSeverity = $secondsSinceLastCompletion;
+    if ($secondsElapsedForSeverity === null && $reminder['desired_date']) {
+        $secondsElapsedForSeverity = $secondsSinceDesiredDate;
     }
 
-    $averageDaysBetweenCompletions = null;
+    $averageSecondsBetweenCompletions = null;
     if (count($completions) >= 2) {
         $sum = 0;
         $count = 0;
@@ -216,45 +263,45 @@ function reminderWithStats(array $reminder) {
             $prev = strtotime($completions[$i - 1]['completed_at']);
             $curr = strtotime($completions[$i]['completed_at']);
             if ($prev !== false && $curr !== false && $curr >= $prev) {
-                $sum += ($curr - $prev) / 86400;
+                $sum += $curr - $prev;
                 $count++;
             }
         }
         if ($count > 0) {
-            $averageDaysBetweenCompletions = round($sum / $count, 2);
+            $averageSecondsBetweenCompletions = (int) round($sum / $count);
         }
     }
 
     $currentSeverity = reminderSeverityColor(
-        $daysElapsedForSeverity,
-        (int) $reminder['yellow_after_days'],
-        (int) $reminder['red_after_days']
+        $secondsElapsedForSeverity,
+        $yellowAfterSeconds,
+        $redAfterSeconds
     );
 
     $averageSeverity = reminderAverageSeverityColor(
-        $averageDaysBetweenCompletions,
-        (int) $reminder['lower_yellow_below_days'],
-        (int) $reminder['lower_red_below_days'],
-        (int) $reminder['yellow_after_days'],
-        (int) $reminder['red_after_days']
+        $averageSecondsBetweenCompletions,
+        $lowerYellowBelowSeconds,
+        $lowerRedBelowSeconds,
+        $yellowAfterSeconds,
+        $redAfterSeconds
     );
 
     return [
         'id' => (int) $reminder['id'],
         'title' => $reminder['title'],
         'desired_date' => $reminder['desired_date'],
-        'expected_period_days' => $reminder['expected_period_days'] !== null ? (int) $reminder['expected_period_days'] : null,
-        'yellow_after_days' => (int) $reminder['yellow_after_days'],
-        'red_after_days' => (int) $reminder['red_after_days'],
-        'lower_yellow_below_days' => (int) $reminder['lower_yellow_below_days'],
-        'lower_red_below_days' => (int) $reminder['lower_red_below_days'],
+        'expected_period_seconds' => $expectedPeriodSeconds,
+        'yellow_after_seconds' => $yellowAfterSeconds,
+        'red_after_seconds' => $redAfterSeconds,
+        'lower_yellow_below_seconds' => $lowerYellowBelowSeconds,
+        'lower_red_below_seconds' => $lowerRedBelowSeconds,
         'created_at' => $reminder['created_at'],
         'updated_at' => $reminder['updated_at'],
         'last_completed_at' => $lastCompletedAt,
-        'days_since_last_completion' => $daysSinceLastCompletion,
-        'days_since_desired_date' => $daysSinceDesiredDate,
-        'days_elapsed_for_severity' => $daysElapsedForSeverity,
-        'average_days_between_completions' => $averageDaysBetweenCompletions,
+        'seconds_since_last_completion' => $secondsSinceLastCompletion,
+        'seconds_since_desired_date' => $secondsSinceDesiredDate,
+        'seconds_elapsed_for_severity' => $secondsElapsedForSeverity,
+        'average_seconds_between_completions' => $averageSecondsBetweenCompletions,
         'current_severity' => $currentSeverity,
         'average_severity' => $averageSeverity,
         'completion_count' => count($completions),
@@ -587,30 +634,25 @@ app()->post('/reminders', [
         $data = request()->get([
             'title',
             'desired_date',
+            'expected_period_seconds',
             'expected_period_days',
+            'yellow_after_seconds',
             'yellow_after_days',
+            'red_after_seconds',
             'red_after_days',
+            'lower_yellow_below_seconds',
             'lower_yellow_below_days',
+            'lower_red_below_seconds',
             'lower_red_below_days',
         ]);
 
         $title = trim((string) ($data['title'] ?? ''));
         $desiredDate = trim((string) ($data['desired_date'] ?? ''));
-        $expectedPeriodDays = $data['expected_period_days'] !== null && $data['expected_period_days'] !== ''
-            ? (int) $data['expected_period_days']
-            : null;
-        $yellowAfterDays = $data['yellow_after_days'] !== null && $data['yellow_after_days'] !== ''
-            ? (int) $data['yellow_after_days']
-            : 2;
-        $redAfterDays = $data['red_after_days'] !== null && $data['red_after_days'] !== ''
-            ? (int) $data['red_after_days']
-            : 5;
-        $lowerYellowBelowDays = $data['lower_yellow_below_days'] !== null && $data['lower_yellow_below_days'] !== ''
-            ? (int) $data['lower_yellow_below_days']
-            : 2;
-        $lowerRedBelowDays = $data['lower_red_below_days'] !== null && $data['lower_red_below_days'] !== ''
-            ? (int) $data['lower_red_below_days']
-            : 1;
+        $expectedPeriodSeconds = requestTimingSeconds($data, 'expected_period_seconds', 'expected_period_days');
+        $yellowAfterSeconds = requestTimingSeconds($data, 'yellow_after_seconds', 'yellow_after_days', 2 * SECONDS_PER_DAY);
+        $redAfterSeconds = requestTimingSeconds($data, 'red_after_seconds', 'red_after_days', 5 * SECONDS_PER_DAY);
+        $lowerYellowBelowSeconds = requestTimingSeconds($data, 'lower_yellow_below_seconds', 'lower_yellow_below_days', 2 * SECONDS_PER_DAY);
+        $lowerRedBelowSeconds = requestTimingSeconds($data, 'lower_red_below_seconds', 'lower_red_below_days', 1 * SECONDS_PER_DAY);
 
         if ($title === '') {
             response()->json([
@@ -621,16 +663,16 @@ app()->post('/reminders', [
             return;
         }
 
-        if ($expectedPeriodDays !== null && $expectedPeriodDays <= 0) {
+        if ($expectedPeriodSeconds !== null && $expectedPeriodSeconds <= 0) {
             response()->json([
                 'success' => false,
-                'message' => 'Expected period must be a positive number of days',
+                'message' => 'Expected period must be a positive number of seconds',
                 'error' => 'invalid_input',
             ], 400);
             return;
         }
 
-        if ($yellowAfterDays < 0 || $redAfterDays < 0 || $redAfterDays < $yellowAfterDays) {
+        if ($yellowAfterSeconds < 0 || $redAfterSeconds < 0 || $redAfterSeconds < $yellowAfterSeconds) {
             response()->json([
                 'success' => false,
                 'message' => 'Severity thresholds are invalid',
@@ -639,7 +681,7 @@ app()->post('/reminders', [
             return;
         }
 
-        if ($lowerYellowBelowDays < 0 || $lowerRedBelowDays < 0 || $lowerRedBelowDays > $lowerYellowBelowDays) {
+        if ($lowerYellowBelowSeconds < 0 || $lowerRedBelowSeconds < 0 || $lowerRedBelowSeconds > $lowerYellowBelowSeconds) {
             response()->json([
                 'success' => false,
                 'message' => 'Lower average severity thresholds are invalid',
@@ -663,11 +705,11 @@ app()->post('/reminders', [
             'user_id' => $userId,
             'title' => $title,
             'desired_date' => $desiredDate !== '' ? $desiredDate : null,
-            'expected_period_days' => $expectedPeriodDays,
-            'yellow_after_days' => $yellowAfterDays,
-            'red_after_days' => $redAfterDays,
-            'lower_yellow_below_days' => $lowerYellowBelowDays,
-            'lower_red_below_days' => $lowerRedBelowDays,
+            'expected_period_seconds' => $expectedPeriodSeconds,
+            'yellow_after_seconds' => $yellowAfterSeconds,
+            'red_after_seconds' => $redAfterSeconds,
+            'lower_yellow_below_seconds' => $lowerYellowBelowSeconds,
+            'lower_red_below_seconds' => $lowerRedBelowSeconds,
         ])->execute();
 
         $created = db()
@@ -723,10 +765,15 @@ app()->put('/reminders/{id}', [
         $data = request()->get([
             'title',
             'desired_date',
+            'expected_period_seconds',
             'expected_period_days',
+            'yellow_after_seconds',
             'yellow_after_days',
+            'red_after_seconds',
             'red_after_days',
+            'lower_yellow_below_seconds',
             'lower_yellow_below_days',
+            'lower_red_below_seconds',
             'lower_red_below_days',
         ]);
 
@@ -734,23 +781,23 @@ app()->put('/reminders/{id}', [
         $desiredDateRaw = array_key_exists('desired_date', $data) ? (string) $data['desired_date'] : $reminder['desired_date'];
         $desiredDate = trim((string) $desiredDateRaw);
 
-        $expectedPeriodDays = array_key_exists('expected_period_days', $data)
-            ? (($data['expected_period_days'] === '' || $data['expected_period_days'] === null) ? null : (int) $data['expected_period_days'])
-            : ($reminder['expected_period_days'] !== null ? (int) $reminder['expected_period_days'] : null);
+        $expectedPeriodSeconds = array_key_exists('expected_period_seconds', $data) || array_key_exists('expected_period_days', $data)
+            ? requestTimingSeconds($data, 'expected_period_seconds', 'expected_period_days')
+            : reminderTimingSeconds($reminder, 'expected_period_seconds');
 
-        $yellowAfterDays = array_key_exists('yellow_after_days', $data)
-            ? (int) $data['yellow_after_days']
-            : (int) $reminder['yellow_after_days'];
+        $yellowAfterSeconds = array_key_exists('yellow_after_seconds', $data) || array_key_exists('yellow_after_days', $data)
+            ? requestTimingSeconds($data, 'yellow_after_seconds', 'yellow_after_days', 2 * SECONDS_PER_DAY)
+            : reminderTimingSeconds($reminder, 'yellow_after_seconds');
 
-        $redAfterDays = array_key_exists('red_after_days', $data)
-            ? (int) $data['red_after_days']
-            : (int) $reminder['red_after_days'];
-        $lowerYellowBelowDays = array_key_exists('lower_yellow_below_days', $data)
-            ? (int) $data['lower_yellow_below_days']
-            : (int) $reminder['lower_yellow_below_days'];
-        $lowerRedBelowDays = array_key_exists('lower_red_below_days', $data)
-            ? (int) $data['lower_red_below_days']
-            : (int) $reminder['lower_red_below_days'];
+        $redAfterSeconds = array_key_exists('red_after_seconds', $data) || array_key_exists('red_after_days', $data)
+            ? requestTimingSeconds($data, 'red_after_seconds', 'red_after_days', 5 * SECONDS_PER_DAY)
+            : reminderTimingSeconds($reminder, 'red_after_seconds');
+        $lowerYellowBelowSeconds = array_key_exists('lower_yellow_below_seconds', $data) || array_key_exists('lower_yellow_below_days', $data)
+            ? requestTimingSeconds($data, 'lower_yellow_below_seconds', 'lower_yellow_below_days', 2 * SECONDS_PER_DAY)
+            : reminderTimingSeconds($reminder, 'lower_yellow_below_seconds');
+        $lowerRedBelowSeconds = array_key_exists('lower_red_below_seconds', $data) || array_key_exists('lower_red_below_days', $data)
+            ? requestTimingSeconds($data, 'lower_red_below_seconds', 'lower_red_below_days', 1 * SECONDS_PER_DAY)
+            : reminderTimingSeconds($reminder, 'lower_red_below_seconds');
 
         if ($title === '') {
             response()->json([
@@ -761,16 +808,16 @@ app()->put('/reminders/{id}', [
             return;
         }
 
-        if ($expectedPeriodDays !== null && $expectedPeriodDays <= 0) {
+        if ($expectedPeriodSeconds !== null && $expectedPeriodSeconds <= 0) {
             response()->json([
                 'success' => false,
-                'message' => 'Expected period must be a positive number of days',
+                'message' => 'Expected period must be a positive number of seconds',
                 'error' => 'invalid_input',
             ], 400);
             return;
         }
 
-        if ($yellowAfterDays < 0 || $redAfterDays < 0 || $redAfterDays < $yellowAfterDays) {
+        if ($yellowAfterSeconds < 0 || $redAfterSeconds < 0 || $redAfterSeconds < $yellowAfterSeconds) {
             response()->json([
                 'success' => false,
                 'message' => 'Severity thresholds are invalid',
@@ -779,7 +826,7 @@ app()->put('/reminders/{id}', [
             return;
         }
 
-        if ($lowerYellowBelowDays < 0 || $lowerRedBelowDays < 0 || $lowerRedBelowDays > $lowerYellowBelowDays) {
+        if ($lowerYellowBelowSeconds < 0 || $lowerRedBelowSeconds < 0 || $lowerRedBelowSeconds > $lowerYellowBelowSeconds) {
             response()->json([
                 'success' => false,
                 'message' => 'Lower average severity thresholds are invalid',
@@ -800,11 +847,11 @@ app()->put('/reminders/{id}', [
         db()->update('reminders')->params([
             'title' => $title,
             'desired_date' => $desiredDate !== '' ? $desiredDate : null,
-            'expected_period_days' => $expectedPeriodDays,
-            'yellow_after_days' => $yellowAfterDays,
-            'red_after_days' => $redAfterDays,
-            'lower_yellow_below_days' => $lowerYellowBelowDays,
-            'lower_red_below_days' => $lowerRedBelowDays,
+            'expected_period_seconds' => $expectedPeriodSeconds,
+            'yellow_after_seconds' => $yellowAfterSeconds,
+            'red_after_seconds' => $redAfterSeconds,
+            'lower_yellow_below_seconds' => $lowerYellowBelowSeconds,
+            'lower_red_below_seconds' => $lowerRedBelowSeconds,
         ])->where('id', (int) $id)->where('user_id', $userId)->execute();
 
         $updated = findReminderForUser($id, $userId);

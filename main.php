@@ -221,8 +221,8 @@
                     <input id="rTitle" type="text" placeholder="water plants">
                 </div>
                 <div>
-                    <label for="rExpected">Expected period (days)</label>
-                    <input id="rExpected" type="number" min="1" placeholder="3">
+                    <label for="rExpected">Expected period (seconds)</label>
+                    <input id="rExpected" type="number" min="1" placeholder="259200">
                 </div>
                 <div>
                     <label for="rDesiredDate">Desired date</label>
@@ -231,20 +231,20 @@
             </div>
             <div class="row">
                 <div>
-                    <label for="rYellow">Yellow after days</label>
-                    <input id="rYellow" type="number" min="0" value="2">
+                    <label for="rYellow">Yellow after seconds</label>
+                    <input id="rYellow" type="number" min="0" value="172800">
                 </div>
                 <div>
-                    <label for="rRed">Red after days</label>
-                    <input id="rRed" type="number" min="0" value="5">
+                    <label for="rRed">Red after seconds</label>
+                    <input id="rRed" type="number" min="0" value="432000">
                 </div>
                 <div>
-                    <label for="rLowerYellow">Average yellow below days</label>
-                    <input id="rLowerYellow" type="number" min="0" value="2">
+                    <label for="rLowerYellow">Average yellow below seconds</label>
+                    <input id="rLowerYellow" type="number" min="0" value="172800">
                 </div>
                 <div>
-                    <label for="rLowerRed">Average red below days</label>
-                    <input id="rLowerRed" type="number" min="0" value="1">
+                    <label for="rLowerRed">Average red below seconds</label>
+                    <input id="rLowerRed" type="number" min="0" value="86400">
                 </div>
                 <div>
                     <label>&nbsp;</label>
@@ -277,8 +277,8 @@
                     <label for="sortBy">Sort</label>
                     <select id="sortBy">
                         <option value="severity_desc">Severity (red first)</option>
-                        <option value="days_elapsed_desc">Most overdue</option>
-                        <option value="days_elapsed_asc">Least overdue</option>
+                        <option value="seconds_elapsed_desc">Most overdue</option>
+                        <option value="seconds_elapsed_asc">Least overdue</option>
                         <option value="avg_interval_desc">Highest average interval</option>
                         <option value="title_asc">Title A-Z</option>
                         <option value="title_desc">Title Z-A</option>
@@ -294,10 +294,10 @@
                 <div class="small">Current severity: <strong class="r-current-severity"></strong></div>
                 <div class="small">Average severity: <strong class="r-average-severity"></strong></div>
                 <div class="small">Last completed: <span class="r-last-completed"></span></div>
-                <div class="small">Days since last completion: <span class="r-days-since"></span></div>
+                <div class="small">Seconds since last completion: <span class="r-seconds-since"></span></div>
                 <div class="small">Desired date: <span class="r-desired-date"></span></div>
-                <div class="small">Expected period: <span class="r-expected-period"></span> day(s)</div>
-                <div class="small">Average between completions: <span class="r-average-between"></span> day(s)</div>
+                <div class="small">Expected period: <span class="r-expected-period"></span> second(s)</div>
+                <div class="small">Average between completions: <span class="r-average-between"></span> second(s)</div>
                 <div class="small">Upper thresholds: yellow <span class="r-yellow"></span> / red <span class="r-red"></span></div>
                 <div class="small">Average lower thresholds: yellow below <span class="r-lower-yellow"></span> / red below <span class="r-lower-red"></span></div>
                 <div class="actions">
@@ -333,7 +333,7 @@
                     <input id="editTitle" type="text">
                 </div>
                 <div>
-                    <label for="editExpected">Expected period (days)</label>
+                    <label for="editExpected">Expected period (seconds)</label>
                     <input id="editExpected" type="number" min="1">
                 </div>
                 <div>
@@ -343,19 +343,19 @@
             </div>
             <div class="row">
                 <div>
-                    <label for="editYellow">Yellow after days</label>
+                    <label for="editYellow">Yellow after seconds</label>
                     <input id="editYellow" type="number" min="0">
                 </div>
                 <div>
-                    <label for="editRed">Red after days</label>
+                    <label for="editRed">Red after seconds</label>
                     <input id="editRed" type="number" min="0">
                 </div>
                 <div>
-                    <label for="editLowerYellow">Average yellow below days</label>
+                    <label for="editLowerYellow">Average yellow below seconds</label>
                     <input id="editLowerYellow" type="number" min="0">
                 </div>
                 <div>
-                    <label for="editLowerRed">Average red below days</label>
+                    <label for="editLowerRed">Average red below seconds</label>
                     <input id="editLowerRed" type="number" min="0">
                 </div>
             </div>

@@ -70,12 +70,12 @@ $(function () {
         try {
             const payload = {
                 title: $('#rTitle').val().trim(),
-                expected_period_days: $('#rExpected').val() || null,
+                expected_period_seconds: $('#rExpected').val() || null,
                 desired_date: $('#rDesiredDate').val() || null,
-                yellow_after_days: $('#rYellow').val() || 2,
-                red_after_days: $('#rRed').val() || 5,
-                lower_yellow_below_days: $('#rLowerYellow').val() || 2,
-                lower_red_below_days: $('#rLowerRed').val() || 1
+                yellow_after_seconds: $('#rYellow').val() || 172800,
+                red_after_seconds: $('#rRed').val() || 432000,
+                lower_yellow_below_seconds: $('#rLowerYellow').val() || 172800,
+                lower_red_below_seconds: $('#rLowerRed').val() || 86400
             };
 
             await api('/reminders', 'POST', payload, true);
@@ -173,12 +173,12 @@ $(function () {
 
         activeEditReminderId = id;
         $('#editTitle').val(reminder.title || '');
-        $('#editExpected').val(reminder.expected_period_days === null ? '' : reminder.expected_period_days);
+        $('#editExpected').val(reminder.expected_period_seconds === null ? '' : reminder.expected_period_seconds);
         $('#editDesiredDate').val(reminder.desired_date || '');
-        $('#editYellow').val(reminder.yellow_after_days);
-        $('#editRed').val(reminder.red_after_days);
-        $('#editLowerYellow').val(reminder.lower_yellow_below_days ?? 2);
-        $('#editLowerRed').val(reminder.lower_red_below_days ?? 1);
+        $('#editYellow').val(reminder.yellow_after_seconds);
+        $('#editRed').val(reminder.red_after_seconds);
+        $('#editLowerYellow').val(reminder.lower_yellow_below_seconds ?? 172800);
+        $('#editLowerRed').val(reminder.lower_red_below_seconds ?? 86400);
         openModal('#editModal');
         $('#editTitle').trigger('focus');
     });
@@ -196,12 +196,12 @@ $(function () {
 
         const payload = {
             title: $('#editTitle').val().trim(),
-            expected_period_days: $('#editExpected').val().trim() === '' ? '' : Number($('#editExpected').val()),
+            expected_period_seconds: $('#editExpected').val().trim() === '' ? '' : Number($('#editExpected').val()),
             desired_date: $('#editDesiredDate').val().trim(),
-            yellow_after_days: Number($('#editYellow').val()),
-            red_after_days: Number($('#editRed').val()),
-            lower_yellow_below_days: Number($('#editLowerYellow').val()),
-            lower_red_below_days: Number($('#editLowerRed').val())
+            yellow_after_seconds: Number($('#editYellow').val()),
+            red_after_seconds: Number($('#editRed').val()),
+            lower_yellow_below_seconds: Number($('#editLowerYellow').val()),
+            lower_red_below_seconds: Number($('#editLowerRed').val())
         };
 
         try {
@@ -288,7 +288,7 @@ $(function () {
         }
         if (typeFilter === 'period') {
             list = list.filter(function (r) {
-                return r.expected_period_days !== null;
+                return r.expected_period_seconds !== null;
             });
         }
 
@@ -296,9 +296,9 @@ $(function () {
         list.sort(function (a, b) {
             if (sortBy === 'title_asc') return compareString(a.title, b.title);
             if (sortBy === 'title_desc') return compareString(b.title, a.title);
-            if (sortBy === 'days_elapsed_asc') return numberOrNegOne(a.days_elapsed_for_severity) - numberOrNegOne(b.days_elapsed_for_severity);
-            if (sortBy === 'days_elapsed_desc') return numberOrNegOne(b.days_elapsed_for_severity) - numberOrNegOne(a.days_elapsed_for_severity);
-            if (sortBy === 'avg_interval_desc') return numberOrNegOne(b.average_days_between_completions) - numberOrNegOne(a.average_days_between_completions);
+            if (sortBy === 'seconds_elapsed_asc') return numberOrNegOne(a.seconds_elapsed_for_severity) - numberOrNegOne(b.seconds_elapsed_for_severity);
+            if (sortBy === 'seconds_elapsed_desc') return numberOrNegOne(b.seconds_elapsed_for_severity) - numberOrNegOne(a.seconds_elapsed_for_severity);
+            if (sortBy === 'avg_interval_desc') return numberOrNegOne(b.average_seconds_between_completions) - numberOrNegOne(a.average_seconds_between_completions);
             return severityRank(b.current_severity) - severityRank(a.current_severity);
         });
 
@@ -322,14 +322,14 @@ $(function () {
             node.querySelector('.r-current-severity').textContent = r.current_severity;
             node.querySelector('.r-average-severity').textContent = r.average_severity || 'n/a';
             node.querySelector('.r-last-completed').textContent = formatDateTime(r.last_completed_at);
-            node.querySelector('.r-days-since').textContent = formatNumber(r.days_since_last_completion);
+            node.querySelector('.r-seconds-since').textContent = formatNumber(r.seconds_since_last_completion);
             node.querySelector('.r-desired-date').textContent = r.desired_date || 'none';
-            node.querySelector('.r-expected-period').textContent = formatNumber(r.expected_period_days);
-            node.querySelector('.r-average-between').textContent = formatNumber(r.average_days_between_completions);
-            node.querySelector('.r-yellow').textContent = String(r.yellow_after_days);
-            node.querySelector('.r-red').textContent = String(r.red_after_days);
-            node.querySelector('.r-lower-yellow').textContent = formatNumber(r.lower_yellow_below_days);
-            node.querySelector('.r-lower-red').textContent = formatNumber(r.lower_red_below_days);
+            node.querySelector('.r-expected-period').textContent = formatNumber(r.expected_period_seconds);
+            node.querySelector('.r-average-between').textContent = formatNumber(r.average_seconds_between_completions);
+            node.querySelector('.r-yellow').textContent = String(r.yellow_after_seconds);
+            node.querySelector('.r-red').textContent = String(r.red_after_seconds);
+            node.querySelector('.r-lower-yellow').textContent = formatNumber(r.lower_yellow_below_seconds);
+            node.querySelector('.r-lower-red').textContent = formatNumber(r.lower_red_below_seconds);
 
             node.querySelector('.complete-btn').dataset.id = String(r.id);
             node.querySelector('.history-btn').dataset.id = String(r.id);
