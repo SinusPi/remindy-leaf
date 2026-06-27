@@ -61,6 +61,9 @@ $schema->manageTable('reminders', [
         updated_at DATETIME NULL,
         INDEX idx_reminders_user (user_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    '2' => "ALTER TABLE reminders
+        ADD COLUMN lower_yellow_below_days INT UNSIGNED NOT NULL DEFAULT 2 AFTER red_after_days,
+        ADD COLUMN lower_red_below_days INT UNSIGNED NOT NULL DEFAULT 1 AFTER lower_yellow_below_days",
 ]);
 
 $schema->manageTable('reminder_completions', [
@@ -168,6 +171,22 @@ function reminderSeverityColor($daysElapsed, $yellowAfterDays, $redAfterDays) {
     return 'green';
 }
 
+function reminderAverageSeverityColor($averageDaysBetweenCompletions, $lowerYellowBelowDays, $lowerRedBelowDays, $yellowAfterDays, $redAfterDays) {
+    if ($averageDaysBetweenCompletions === null) {
+        return null;
+    }
+
+    if ($averageDaysBetweenCompletions <= $lowerRedBelowDays) {
+        return 'red';
+    }
+
+    if ($averageDaysBetweenCompletions <= $lowerYellowBelowDays) {
+        return 'yellow';
+    }
+
+    return reminderSeverityColor((int) floor($averageDaysBetweenCompletions), $yellowAfterDays, $redAfterDays);
+}
+
 function reminderWithStats(array $reminder) {
     $completions = db()
         ->select('reminder_completions')
@@ -212,13 +231,13 @@ function reminderWithStats(array $reminder) {
         (int) $reminder['red_after_days']
     );
 
-    $averageSeverity = $averageDaysBetweenCompletions === null
-        ? null
-        : reminderSeverityColor(
-            (int) floor($averageDaysBetweenCompletions),
-            (int) $reminder['yellow_after_days'],
-            (int) $reminder['red_after_days']
-        );
+    $averageSeverity = reminderAverageSeverityColor(
+        $averageDaysBetweenCompletions,
+        (int) $reminder['lower_yellow_below_days'],
+        (int) $reminder['lower_red_below_days'],
+        (int) $reminder['yellow_after_days'],
+        (int) $reminder['red_after_days']
+    );
 
     return [
         'id' => (int) $reminder['id'],
@@ -227,6 +246,8 @@ function reminderWithStats(array $reminder) {
         'expected_period_days' => $reminder['expected_period_days'] !== null ? (int) $reminder['expected_period_days'] : null,
         'yellow_after_days' => (int) $reminder['yellow_after_days'],
         'red_after_days' => (int) $reminder['red_after_days'],
+        'lower_yellow_below_days' => (int) $reminder['lower_yellow_below_days'],
+        'lower_red_below_days' => (int) $reminder['lower_red_below_days'],
         'created_at' => $reminder['created_at'],
         'updated_at' => $reminder['updated_at'],
         'last_completed_at' => $lastCompletedAt,
@@ -569,6 +590,8 @@ app()->post('/reminders', [
             'expected_period_days',
             'yellow_after_days',
             'red_after_days',
+            'lower_yellow_below_days',
+            'lower_red_below_days',
         ]);
 
         $title = trim((string) ($data['title'] ?? ''));
@@ -582,6 +605,12 @@ app()->post('/reminders', [
         $redAfterDays = $data['red_after_days'] !== null && $data['red_after_days'] !== ''
             ? (int) $data['red_after_days']
             : 5;
+        $lowerYellowBelowDays = $data['lower_yellow_below_days'] !== null && $data['lower_yellow_below_days'] !== ''
+            ? (int) $data['lower_yellow_below_days']
+            : 2;
+        $lowerRedBelowDays = $data['lower_red_below_days'] !== null && $data['lower_red_below_days'] !== ''
+            ? (int) $data['lower_red_below_days']
+            : 1;
 
         if ($title === '') {
             response()->json([
@@ -610,6 +639,15 @@ app()->post('/reminders', [
             return;
         }
 
+        if ($lowerYellowBelowDays < 0 || $lowerRedBelowDays < 0 || $lowerRedBelowDays > $lowerYellowBelowDays) {
+            response()->json([
+                'success' => false,
+                'message' => 'Lower average severity thresholds are invalid',
+                'error' => 'invalid_input',
+            ], 400);
+            return;
+        }
+
         if ($desiredDate !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $desiredDate)) {
             response()->json([
                 'success' => false,
@@ -628,6 +666,8 @@ app()->post('/reminders', [
             'expected_period_days' => $expectedPeriodDays,
             'yellow_after_days' => $yellowAfterDays,
             'red_after_days' => $redAfterDays,
+            'lower_yellow_below_days' => $lowerYellowBelowDays,
+            'lower_red_below_days' => $lowerRedBelowDays,
         ])->execute();
 
         $created = db()
@@ -686,6 +726,8 @@ app()->put('/reminders/{id}', [
             'expected_period_days',
             'yellow_after_days',
             'red_after_days',
+            'lower_yellow_below_days',
+            'lower_red_below_days',
         ]);
 
         $title = trim((string) ($data['title'] ?? $reminder['title']));
@@ -703,6 +745,12 @@ app()->put('/reminders/{id}', [
         $redAfterDays = array_key_exists('red_after_days', $data)
             ? (int) $data['red_after_days']
             : (int) $reminder['red_after_days'];
+        $lowerYellowBelowDays = array_key_exists('lower_yellow_below_days', $data)
+            ? (int) $data['lower_yellow_below_days']
+            : (int) $reminder['lower_yellow_below_days'];
+        $lowerRedBelowDays = array_key_exists('lower_red_below_days', $data)
+            ? (int) $data['lower_red_below_days']
+            : (int) $reminder['lower_red_below_days'];
 
         if ($title === '') {
             response()->json([
@@ -731,6 +779,15 @@ app()->put('/reminders/{id}', [
             return;
         }
 
+        if ($lowerYellowBelowDays < 0 || $lowerRedBelowDays < 0 || $lowerRedBelowDays > $lowerYellowBelowDays) {
+            response()->json([
+                'success' => false,
+                'message' => 'Lower average severity thresholds are invalid',
+                'error' => 'invalid_input',
+            ], 400);
+            return;
+        }
+
         if ($desiredDate !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $desiredDate)) {
             response()->json([
                 'success' => false,
@@ -746,6 +803,8 @@ app()->put('/reminders/{id}', [
             'expected_period_days' => $expectedPeriodDays,
             'yellow_after_days' => $yellowAfterDays,
             'red_after_days' => $redAfterDays,
+            'lower_yellow_below_days' => $lowerYellowBelowDays,
+            'lower_red_below_days' => $lowerRedBelowDays,
         ])->where('id', (int) $id)->where('user_id', $userId)->execute();
 
         $updated = findReminderForUser($id, $userId);
@@ -860,4 +919,3 @@ app()->get('/reminders/{id}/completions', [
 ]);
 
 app()->run();
-
