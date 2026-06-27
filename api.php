@@ -279,7 +279,30 @@ mailer()->connect([
 ]);
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
-app()->get('/', fn() => response()->page('main.php',200));
+app()->get('/', fn() => response()->json([
+    'success' => true,
+    'message' => 'Remindy API is running',
+], 200));
+
+app()->get('/endpoints', fn() => response()->json([
+    'success' => true,
+    'endpoints' => [
+        'GET /me' => 'Get authenticated user info (requires Bearer token)',
+        'POST /login' => 'Authenticate user and return access/refresh tokens',
+        'POST /register' => 'Register a new user and return access/refresh tokens',
+        'POST /logout' => 'Logout user (client should discard token)',
+        'POST /forgot-password' => 'Request password reset link via email',
+        'POST /reset-password' => 'Reset password using token from email',
+        'GET /reminders' => 'List all reminders for authenticated user',
+        'POST /reminders' => 'Create a new reminder for authenticated user',
+        'GET /reminders/{id}' => 'Get details of a specific reminder',
+        'PUT /reminders/{id}' => 'Update a specific reminder',
+        'DELETE /reminders/{id}' => 'Delete a specific reminder',
+        'POST /reminders/{id}/complete' => 'Mark a reminder as completed [args: completion_comment?]',
+        'GET /reminders/{id}/completions' => 'List completions for a specific reminder',
+    ]
+], 200));
+
 
 // ── Dashboard (protected) ────────────────────────────────────────────────────
 app()->get('/me', [
