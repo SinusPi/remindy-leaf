@@ -965,8 +965,8 @@ function migrateSchema($dbConnection) {
             CHANGE COLUMN yellow_after_days yellow_after_seconds INT UNSIGNED NOT NULL DEFAULT 172800,
             CHANGE COLUMN red_after_days red_after_seconds INT UNSIGNED NOT NULL DEFAULT 432000,
             CHANGE COLUMN lower_yellow_below_days lower_yellow_below_seconds INT UNSIGNED NOT NULL DEFAULT 172800,
-            CHANGE COLUMN lower_red_below_days lower_red_below_seconds INT UNSIGNED NOT NULL DEFAULT 86400",
-        '4>5' => "UPDATE reminders
+            CHANGE COLUMN lower_red_below_days lower_red_below_seconds INT UNSIGNED NOT NULL DEFAULT 86400;
+            UPDATE reminders
             SET expected_period_seconds = CASE
                     WHEN expected_period_seconds IS NULL THEN NULL
                     ELSE expected_period_seconds * 86400
