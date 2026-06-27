@@ -28,7 +28,7 @@ $(function () {
                 username: $('#authUsernameLogin').val().trim(),
                 password: $('#authPassword').val()
             };
-            const res = await api('/login', 'POST', payload, false);
+            const res = await api('login', 'POST', payload, false);
             onAuthSuccess(res);
         } catch (e) {
             showError(e.message || 'Login failed');
@@ -44,7 +44,7 @@ $(function () {
                 password: password,
                 password_confirm: $('#authPasswordConfirm').val()
             };
-            const res = await api('/register', 'POST', payload, false);
+            const res = await api('register', 'POST', payload, false);
             onAuthSuccess(res);
         } catch (e) {
             showError(e.message || 'Registration failed');
@@ -79,7 +79,7 @@ $(function () {
                 lower_red_below_seconds: $('#rLowerRed').val() || 86400
             };
 
-            await api('/reminders', 'POST', payload, true);
+            await api('reminders', 'POST', payload, true);
             $('#rTitle').val('');
             $('#rExpected').val('');
             $('#rDesiredDate').val('');
@@ -117,7 +117,7 @@ $(function () {
         }
 
         try {
-            await api('/reminders/' + activeCompleteReminderId + '/complete', 'POST', {
+            await api('reminders/' + activeCompleteReminderId + '/complete', 'POST', {
                 completion_comment: $('#completeCommentInput').val().trim()
             }, true);
             closeModal('#completeModal');
@@ -154,7 +154,7 @@ $(function () {
         }
 
         try {
-            await api('/reminders/' + activeDeleteReminderId, 'DELETE', null, true);
+            await api('reminders/' + activeDeleteReminderId, 'DELETE', null, true);
             closeModal('#deleteModal');
             activeDeleteReminderId = null;
             showSuccess('Reminder deleted');
@@ -206,7 +206,7 @@ $(function () {
         };
 
         try {
-            await api('/reminders/' + activeEditReminderId, 'PUT', payload, true);
+            await api('reminders/' + activeEditReminderId, 'PUT', payload, true);
             closeModal('#editModal');
             activeEditReminderId = null;
             showSuccess('Reminder updated');
@@ -249,7 +249,7 @@ $(function () {
 
     async function bootApp() {
         try {
-            const me = await api('/me', 'GET', null, true);
+            const me = await api('me', 'GET', null, true);
             $('#userInfo').text(
                 'Logged in as ' + me.user.username + ' (' + me.user.email + ')'
             );
@@ -266,7 +266,7 @@ $(function () {
     }
 
     async function loadReminders() {
-        const res = await api('/reminders', 'GET', null, true);
+        const res = await api('reminders', 'GET', null, true);
         remindersCache = res.reminders || [];
         renderReminders(remindersCache);
     }
