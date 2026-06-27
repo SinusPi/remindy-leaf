@@ -239,6 +239,14 @@
                     <input id="rRed" type="number" min="0" value="5">
                 </div>
                 <div>
+                    <label for="rLowerYellow">Average yellow below days</label>
+                    <input id="rLowerYellow" type="number" min="0" value="2">
+                </div>
+                <div>
+                    <label for="rLowerRed">Average red below days</label>
+                    <input id="rLowerRed" type="number" min="0" value="1">
+                </div>
+                <div>
                     <label>&nbsp;</label>
                     <button id="createReminderBtn">Add Reminder</button>
                 </div>
@@ -290,7 +298,8 @@
                 <div class="small">Desired date: <span class="r-desired-date"></span></div>
                 <div class="small">Expected period: <span class="r-expected-period"></span> day(s)</div>
                 <div class="small">Average between completions: <span class="r-average-between"></span> day(s)</div>
-                <div class="small">Thresholds: yellow <span class="r-yellow"></span> / red <span class="r-red"></span></div>
+                <div class="small">Upper thresholds: yellow <span class="r-yellow"></span> / red <span class="r-red"></span></div>
+                <div class="small">Average lower thresholds: yellow below <span class="r-lower-yellow"></span> / red below <span class="r-lower-red"></span></div>
                 <div class="actions">
                     <button class="btn-ok complete-btn" type="button">Complete</button>
                     <button class="btn-muted history-btn" type="button">History</button>
@@ -340,6 +349,14 @@
                 <div>
                     <label for="editRed">Red after days</label>
                     <input id="editRed" type="number" min="0">
+                </div>
+                <div>
+                    <label for="editLowerYellow">Average yellow below days</label>
+                    <input id="editLowerYellow" type="number" min="0">
+                </div>
+                <div>
+                    <label for="editLowerRed">Average red below days</label>
+                    <input id="editLowerRed" type="number" min="0">
                 </div>
             </div>
             <div class="modal-actions">

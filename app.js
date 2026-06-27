@@ -73,7 +73,9 @@ $(function () {
                 expected_period_days: $('#rExpected').val() || null,
                 desired_date: $('#rDesiredDate').val() || null,
                 yellow_after_days: $('#rYellow').val() || 2,
-                red_after_days: $('#rRed').val() || 5
+                red_after_days: $('#rRed').val() || 5,
+                lower_yellow_below_days: $('#rLowerYellow').val() || 2,
+                lower_red_below_days: $('#rLowerRed').val() || 1
             };
 
             await api('/reminders', 'POST', payload, true);
@@ -175,6 +177,8 @@ $(function () {
         $('#editDesiredDate').val(reminder.desired_date || '');
         $('#editYellow').val(reminder.yellow_after_days);
         $('#editRed').val(reminder.red_after_days);
+        $('#editLowerYellow').val(reminder.lower_yellow_below_days ?? 2);
+        $('#editLowerRed').val(reminder.lower_red_below_days ?? 1);
         openModal('#editModal');
         $('#editTitle').trigger('focus');
     });
@@ -195,7 +199,9 @@ $(function () {
             expected_period_days: $('#editExpected').val().trim() === '' ? '' : Number($('#editExpected').val()),
             desired_date: $('#editDesiredDate').val().trim(),
             yellow_after_days: Number($('#editYellow').val()),
-            red_after_days: Number($('#editRed').val())
+            red_after_days: Number($('#editRed').val()),
+            lower_yellow_below_days: Number($('#editLowerYellow').val()),
+            lower_red_below_days: Number($('#editLowerRed').val())
         };
 
         try {
@@ -322,6 +328,8 @@ $(function () {
             node.querySelector('.r-average-between').textContent = formatNumber(r.average_days_between_completions);
             node.querySelector('.r-yellow').textContent = String(r.yellow_after_days);
             node.querySelector('.r-red').textContent = String(r.red_after_days);
+            node.querySelector('.r-lower-yellow').textContent = formatNumber(r.lower_yellow_below_days);
+            node.querySelector('.r-lower-red').textContent = formatNumber(r.lower_red_below_days);
 
             node.querySelector('.complete-btn').dataset.id = String(r.id);
             node.querySelector('.history-btn').dataset.id = String(r.id);
