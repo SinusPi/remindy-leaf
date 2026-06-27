@@ -183,16 +183,16 @@
 
         <div class="row">
             <div>
-                <label for="authEmail">Email</label>
-                <input id="authEmail" type="email" required>
+                <label for="authUsernameLogin">Username</label>
+                <input id="authUsernameLogin" type="text" required>
             </div>
             <div>
                 <label for="authPassword">Password</label>
                 <input id="authPassword" type="password" required>
             </div>
             <div id="usernameField" class="hidden">
-                <label for="authUsername">Username</label>
-                <input id="authUsername" type="text">
+                <label for="authEmail">Email</label>
+                <input id="authEmail" type="email">
             </div>
         </div>
 

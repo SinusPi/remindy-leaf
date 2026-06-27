@@ -288,7 +288,7 @@ app()->get('/endpoints', fn() => response()->json([
     'success' => true,
     'endpoints' => [
         'GET /me' => 'Get authenticated user info (requires Bearer token)',
-        'POST /login' => 'Authenticate user and return access/refresh tokens',
+        'POST /login' => 'Authenticate user with username and password and return access/refresh tokens',
         'POST /register' => 'Register a new user and return access/refresh tokens',
         'POST /logout' => 'Logout user (client should discard token)',
         'POST /forgot-password' => 'Request password reset link via email',
@@ -332,18 +332,31 @@ app()->get('/me', [
 
 // ── Login ─────────────────────────────────────────────────────────────────────
 app()->post('/login', function () {
-    $data = request()->get(['email', 'password']);
+    $data = request()->get(['username', 'password']);
 
-    if (!$data['email'] || !$data['password']) {
+    $username = trim((string) ($data['username'] ?? ''));
+
+    if ($username === '' || !$data['password']) {
         response()->json([
             'success' => false,
-            'message' => 'Email and password are required',
+            'message' => 'Username and password are required',
             'error'   => 'invalid_input',
         ], 400);
         return;
     }
 
-    if (auth()->login(['email' => strtolower(trim($data['email'])), 'password' => $data['password']])) {
+    $userRecord = db()->select('users', 'email')->where('username', $username)->first();
+
+    if (!$userRecord) {
+        response()->json([
+            'success' => false,
+            'message' => 'Invalid credentials',
+            'error'   => 'invalid_credentials',
+        ], 401);
+        return;
+    }
+
+    if (auth()->login(['email' => strtolower(trim($userRecord['email'])), 'password' => $data['password']])) {
         $user   = auth()->user();
         $tokens = auth()->tokens();
 

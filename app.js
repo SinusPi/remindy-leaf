@@ -24,7 +24,7 @@ $(function () {
     $('#loginBtn').on('click', async function () {
         try {
             const payload = {
-                email: $('#authEmail').val().trim(),
+                username: $('#authUsernameLogin').val().trim(),
                 password: $('#authPassword').val()
             };
             const res = await api('/login', 'POST', payload, false);
@@ -38,7 +38,7 @@ $(function () {
         try {
             const password = $('#authPassword').val();
             const payload = {
-                username: $('#authUsername').val().trim(),
+                username: $('#authUsernameLogin').val().trim(),
                 email: $('#authEmail').val().trim(),
                 password: password,
                 password_confirm: password
