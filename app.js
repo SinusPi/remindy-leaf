@@ -6,6 +6,20 @@ $(function () {
         day: 86400,
         week: 604800
     };
+    const THRESHOLD_METRICS = {
+        seconds_elapsed_for_severity: 'Elapsed time since last completion/desired date',
+        average_seconds_between_completions: 'Average time between completions',
+        seconds_since_last_completion: 'Time since last completion',
+        seconds_since_desired_date: 'Time since desired date'
+    };
+    const DEFAULT_THRESHOLDS = [
+        { metric_key: 'seconds_elapsed_for_severity', direction: 'gte', severity: 'yellow', threshold_seconds: 2 * 86400 },
+        { metric_key: 'seconds_elapsed_for_severity', direction: 'gte', severity: 'red', threshold_seconds: 5 * 86400 },
+        { metric_key: 'average_seconds_between_completions', direction: 'lte', severity: 'yellow', threshold_seconds: 2 * 86400 },
+        { metric_key: 'average_seconds_between_completions', direction: 'lte', severity: 'red', threshold_seconds: 1 * 86400 },
+        { metric_key: 'average_seconds_between_completions', direction: 'gte', severity: 'yellow', threshold_seconds: 2 * 86400 },
+        { metric_key: 'average_seconds_between_completions', direction: 'gte', severity: 'red', threshold_seconds: 5 * 86400 }
+    ];
 
     let registerMode = false;
     let remindersCache = [];
@@ -75,16 +89,15 @@ $(function () {
         renderReminders(remindersCache);
     });
 
+    initThresholdList('#rThresholds', DEFAULT_THRESHOLDS);
+
     $('#createReminderBtn').on('click', async function () {
         try {
             const payload = {
                 title: $('#rTitle').val().trim(),
                 expected_period_seconds: durationToSeconds('#rExpectedValue', '#rExpectedUnit', true),
                 desired_date: $('#rDesiredDate').val() || null,
-                yellow_after_seconds: durationToSeconds('#rYellowValue', '#rYellowUnit', false),
-                red_after_seconds: durationToSeconds('#rRedValue', '#rRedUnit', false),
-                lower_yellow_below_seconds: durationToSeconds('#rLowerYellowValue', '#rLowerYellowUnit', false),
-                lower_red_below_seconds: durationToSeconds('#rLowerRedValue', '#rLowerRedUnit', false)
+                thresholds: collectThresholdRows('#rThresholds')
             };
 
             await api('reminders', 'POST', payload, true);
@@ -92,19 +105,21 @@ $(function () {
             $('#rExpectedValue').val('');
             $('#rExpectedUnit').val('day');
             $('#rDesiredDate').val('');
-            $('#rYellowValue').val('2');
-            $('#rYellowUnit').val('day');
-            $('#rRedValue').val('5');
-            $('#rRedUnit').val('day');
-            $('#rLowerYellowValue').val('2');
-            $('#rLowerYellowUnit').val('day');
-            $('#rLowerRedValue').val('1');
-            $('#rLowerRedUnit').val('day');
+            initThresholdList('#rThresholds', DEFAULT_THRESHOLDS);
             showSuccess('Reminder created');
             await loadReminders();
         } catch (e) {
             showError(e.message || 'Failed to create reminder');
         }
+    });
+
+    $('#addCreateThresholdBtn').on('click', function () {
+        appendThresholdRow('#rThresholds', {
+            metric_key: 'seconds_elapsed_for_severity',
+            direction: 'gte',
+            severity: 'yellow',
+            threshold_seconds: 0
+        });
     });
 
     $('#remindersList').on('click', '.complete-btn', function () {
@@ -193,12 +208,18 @@ $(function () {
         $('#editTitle').val(reminder.title || '');
         setDurationFields('#editExpectedValue', '#editExpectedUnit', reminder.expected_period_seconds, true);
         $('#editDesiredDate').val(reminder.desired_date || '');
-        setDurationFields('#editYellowValue', '#editYellowUnit', reminder.yellow_after_seconds, false);
-        setDurationFields('#editRedValue', '#editRedUnit', reminder.red_after_seconds, false);
-        setDurationFields('#editLowerYellowValue', '#editLowerYellowUnit', reminder.lower_yellow_below_seconds, false);
-        setDurationFields('#editLowerRedValue', '#editLowerRedUnit', reminder.lower_red_below_seconds, false);
+        initThresholdList('#editThresholds', reminder.thresholds || []);
         openModal('#editModal');
         $('#editTitle').trigger('focus');
+    });
+
+    $('#addEditThresholdBtn').on('click', function () {
+        appendThresholdRow('#editThresholds', {
+            metric_key: 'seconds_elapsed_for_severity',
+            direction: 'gte',
+            severity: 'yellow',
+            threshold_seconds: 0
+        });
     });
 
     $('#editCancelBtn').on('click', function () {
@@ -216,10 +237,7 @@ $(function () {
             title: $('#editTitle').val().trim(),
             expected_period_seconds: durationToSeconds('#editExpectedValue', '#editExpectedUnit', true, true),
             desired_date: $('#editDesiredDate').val().trim(),
-            yellow_after_seconds: durationToSeconds('#editYellowValue', '#editYellowUnit', false),
-            red_after_seconds: durationToSeconds('#editRedValue', '#editRedUnit', false),
-            lower_yellow_below_seconds: durationToSeconds('#editLowerYellowValue', '#editLowerYellowUnit', false),
-            lower_red_below_seconds: durationToSeconds('#editLowerRedValue', '#editLowerRedUnit', false)
+            thresholds: collectThresholdRows('#editThresholds')
         };
 
         try {
@@ -344,10 +362,7 @@ $(function () {
             node.querySelector('.r-desired-date').textContent = r.desired_date || 'none';
             node.querySelector('.r-expected-period').textContent = formatDuration(r.expected_period_seconds);
             node.querySelector('.r-average-between').textContent = formatDuration(r.average_seconds_between_completions);
-            node.querySelector('.r-yellow').textContent = formatDuration(r.yellow_after_seconds);
-            node.querySelector('.r-red').textContent = formatDuration(r.red_after_seconds);
-            node.querySelector('.r-lower-yellow').textContent = formatDuration(r.lower_yellow_below_seconds);
-            node.querySelector('.r-lower-red').textContent = formatDuration(r.lower_red_below_seconds);
+            node.querySelector('.r-thresholds').innerHTML = renderThresholdSummaryHtml(r.thresholds || []);
 
             node.querySelector('.complete-btn').dataset.id = String(r.id);
             node.querySelector('.history-btn').dataset.id = String(r.id);
@@ -558,9 +573,133 @@ $(function () {
         return String(rounded) + ' ' + unit + (rounded === 1 ? '' : 's');
     }
 
+    function initThresholdList(containerSelector, thresholds) {
+        const container = $(containerSelector);
+        container.html('');
+        (thresholds || []).forEach(function (threshold) {
+            appendThresholdRow(containerSelector, threshold);
+        });
+    }
+
+    function appendThresholdRow(containerSelector, threshold) {
+        const normalized = normalizeThreshold(threshold);
+        $(containerSelector).append(buildThresholdRowHtml(normalized));
+    }
+
+    function collectThresholdRows(containerSelector) {
+        const rows = [];
+        $(containerSelector).find('.threshold-item').each(function () {
+            const metricKey = $(this).find('.threshold-metric').val() || 'seconds_elapsed_for_severity';
+            const direction = $(this).find('.threshold-direction').val() || 'gte';
+            const severity = $(this).find('.threshold-severity').val() || 'yellow';
+            const rawValue = $(this).find('.threshold-value').val();
+            const unit = $(this).find('.threshold-unit').val() || 'day';
+            const numeric = Number(rawValue === '' ? 0 : rawValue);
+            const factor = UNIT_TO_SECONDS[unit] || UNIT_TO_SECONDS.day;
+
+            rows.push({
+                metric_key: metricKey,
+                direction: direction,
+                severity: severity,
+                threshold_seconds: Number.isNaN(numeric) ? 0 : Math.max(0, Math.round(numeric * factor))
+            });
+        });
+        return rows;
+    }
+
+    function normalizeThreshold(threshold) {
+        const metricKey = threshold && THRESHOLD_METRICS[threshold.metric_key]
+            ? threshold.metric_key
+            : 'seconds_elapsed_for_severity';
+        const direction = threshold && (threshold.direction === 'lte' || threshold.direction === 'gte')
+            ? threshold.direction
+            : 'gte';
+        const severity = threshold && (threshold.severity === 'red' || threshold.severity === 'yellow')
+            ? threshold.severity
+            : 'yellow';
+        const seconds = threshold && Number.isFinite(Number(threshold.threshold_seconds))
+            ? Math.max(0, Math.round(Number(threshold.threshold_seconds)))
+            : 0;
+        const split = splitDuration(seconds);
+
+        return {
+            metric_key: metricKey,
+            direction: direction,
+            severity: severity,
+            value: split.value === '' ? 0 : split.value,
+            unit: split.unit || 'day'
+        };
+    }
+
+    function buildThresholdRowHtml(threshold) {
+        return `
+            <div class="threshold-item">
+                <div>
+                    <label>Metric</label>
+                    <select class="threshold-metric">${buildMetricOptionsHtml(threshold.metric_key)}</select>
+                </div>
+                <div>
+                    <label>Condition</label>
+                    <select class="threshold-direction">
+                        <option value="gte"${threshold.direction === 'gte' ? ' selected' : ''}>is at/above</option>
+                        <option value="lte"${threshold.direction === 'lte' ? ' selected' : ''}>is at/below</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Severity</label>
+                    <select class="threshold-severity">
+                        <option value="yellow"${threshold.severity === 'yellow' ? ' selected' : ''}>yellow</option>
+                        <option value="red"${threshold.severity === 'red' ? ' selected' : ''}>red</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Threshold value</label>
+                    <div class="period-field">
+                        <input class="threshold-value" type="number" min="0" step="1" value="${threshold.value}">
+                        <select class="threshold-unit">${buildUnitOptionsHtml(threshold.unit)}</select>
+                    </div>
+                </div>
+                <button type="button" class="btn-danger remove-threshold-btn">Remove</button>
+            </div>
+        `;
+    }
+
+    function buildMetricOptionsHtml(selectedMetric) {
+        return Object.keys(THRESHOLD_METRICS).map(function (metricKey) {
+            const selected = metricKey === selectedMetric ? ' selected' : '';
+            return `<option value="${metricKey}"${selected}>${escapeHtml(THRESHOLD_METRICS[metricKey])}</option>`;
+        }).join('');
+    }
+
+    function buildUnitOptionsHtml(selectedUnit) {
+        return Object.keys(UNIT_TO_SECONDS).map(function (unitKey) {
+            const label = unitKey === 'second' ? 'seconds (advanced)' : unitKey + 's';
+            const selected = unitKey === selectedUnit ? ' selected' : '';
+            return `<option value="${unitKey}"${selected}>${label}</option>`;
+        }).join('');
+    }
+
+    function renderThresholdSummaryHtml(thresholds) {
+        if (!thresholds.length) {
+            return 'none';
+        }
+
+        const items = thresholds.map(function (threshold) {
+            const metricLabel = THRESHOLD_METRICS[threshold.metric_key] || threshold.metric_key;
+            const directionLabel = threshold.direction === 'lte' ? 'at/below' : 'at/above';
+            return `<li>${escapeHtml(metricLabel)} ${directionLabel} ${escapeHtml(formatDuration(threshold.threshold_seconds))} → ${escapeHtml(String(threshold.severity || 'yellow'))}</li>`;
+        }).join('');
+
+        return `<ul class="threshold-summary-list">${items}</ul>`;
+    }
+
     function formatNumber(value) {
         return value === null || value === undefined ? 'n/a' : String(value);
     }
+
+    $('#rThresholds, #editThresholds').on('click', '.remove-threshold-btn', function () {
+        $(this).closest('.threshold-item').remove();
+    });
 
     function escapeHtml(text) {
         return String(text)
