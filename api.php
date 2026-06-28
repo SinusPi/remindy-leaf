@@ -16,7 +16,7 @@ if (file_exists(__DIR__ . '/.env')) {
 auth()->config([
     'session'        => false,
     'db.table'       => 'users',
-    'unique'         => ['email'],
+    'unique'         => ['username','email'],
     'token.secret'   => _env('APP_SECRET', '@_leaf$0Secret!'),
     'token.lifetime' => (int) _env('TOKEN_LIFETIME', 60 * 60 * 24 * 7), // 7 days
 ]);
@@ -334,29 +334,7 @@ app()->get('/me', [
 app()->post('/login', function () {
     $data = request()->get(['username', 'password']);
 
-    $username = trim((string) ($data['username'] ?? ''));
-
-    if ($username === '' || !$data['password']) {
-        response()->json([
-            'success' => false,
-            'message' => 'Username and password are required',
-            'error'   => 'invalid_input',
-        ], 400);
-        return;
-    }
-
-    $userRecord = db()->select('users', 'email')->where('username', $username)->first();
-
-    if (!$userRecord) {
-        response()->json([
-            'success' => false,
-            'message' => 'Invalid credentials',
-            'error'   => 'invalid_credentials',
-        ], 401);
-        return;
-    }
-
-    if (auth()->login(['email' => strtolower(trim($userRecord['email'])), 'password' => $data['password']])) {
+    if (auth()->login(['username' => trim($data['username']), 'password' => $data['password']])) {
         $user   = auth()->user();
         $tokens = auth()->tokens();
 
