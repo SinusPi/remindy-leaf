@@ -1,3 +1,36 @@
+<?php
+function durationUnitOptions($selectedUnit = 'day') {
+    $units = [
+        'minute' => 'minutes',
+        'hour' => 'hours',
+        'day' => 'days',
+        'week' => 'weeks',
+        'second' => 'seconds (advanced)',
+    ];
+
+    $html = '';
+    foreach ($units as $value => $label) {
+        $selected = $value === $selectedUnit ? ' selected' : '';
+        $html .= '<option value="' . $value . '"' . $selected . '>' . $label . '</option>';
+    }
+
+    return $html;
+}
+
+function renderDurationField($idPrefix, $label, $defaultValue = '', $defaultUnit = 'day', $allowEmpty = false) {
+    $required = $allowEmpty ? '' : ' required';
+    $placeholder = $allowEmpty ? 'placeholder="optional"' : '';
+
+    return '
+    <div>
+        <label for="' . $idPrefix . 'Value">' . $label . '</label>
+        <div class="period-field">
+            <input id="' . $idPrefix . 'Value" type="number" min="0" step="1" value="' . htmlspecialchars((string) $defaultValue, ENT_QUOTES, 'UTF-8') . '" ' . $placeholder . $required . '>
+            <select id="' . $idPrefix . 'Unit">' . durationUnitOptions($defaultUnit) . '</select>
+        </div>
+    </div>';
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -127,6 +160,11 @@
             font-size: 14px;
             background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
         }
+        .period-field {
+            display: grid;
+            grid-template-columns: minmax(110px, 1fr) minmax(140px, 1fr);
+            gap: 8px;
+        }
         .modal {
             position: fixed;
             inset: 0;
@@ -224,32 +262,17 @@
                     <label for="rTitle">Title</label>
                     <input id="rTitle" type="text" placeholder="water plants">
                 </div>
-                <div>
-                    <label for="rExpected">Expected period (seconds)</label>
-                    <input id="rExpected" type="number" min="1" placeholder="259200">
-                </div>
+                <?php echo renderDurationField('rExpected', 'Expected period', 3, 'day', true); ?>
                 <div>
                     <label for="rDesiredDate">Desired date</label>
                     <input id="rDesiredDate" type="date">
                 </div>
             </div>
             <div class="row">
-                <div>
-                    <label for="rYellow">Yellow after seconds</label>
-                    <input id="rYellow" type="number" min="0" value="172800">
-                </div>
-                <div>
-                    <label for="rRed">Red after seconds</label>
-                    <input id="rRed" type="number" min="0" value="432000">
-                </div>
-                <div>
-                    <label for="rLowerYellow">Average yellow below seconds</label>
-                    <input id="rLowerYellow" type="number" min="0" value="172800">
-                </div>
-                <div>
-                    <label for="rLowerRed">Average red below seconds</label>
-                    <input id="rLowerRed" type="number" min="0" value="86400">
-                </div>
+                <?php echo renderDurationField('rYellow', 'Yellow after', 2, 'day'); ?>
+                <?php echo renderDurationField('rRed', 'Red after', 5, 'day'); ?>
+                <?php echo renderDurationField('rLowerYellow', 'Average turns yellow below', 2, 'day'); ?>
+                <?php echo renderDurationField('rLowerRed', 'Average turns red below', 1, 'day'); ?>
                 <div>
                     <label>&nbsp;</label>
                     <button id="createReminderBtn">Add Reminder</button>
@@ -336,32 +359,17 @@
                     <label for="editTitle">Title</label>
                     <input id="editTitle" type="text">
                 </div>
-                <div>
-                    <label for="editExpected">Expected period (seconds)</label>
-                    <input id="editExpected" type="number" min="1">
-                </div>
+                <?php echo renderDurationField('editExpected', 'Expected period', '', 'day', true); ?>
                 <div>
                     <label for="editDesiredDate">Desired date</label>
                     <input id="editDesiredDate" type="date">
                 </div>
             </div>
             <div class="row">
-                <div>
-                    <label for="editYellow">Yellow after seconds</label>
-                    <input id="editYellow" type="number" min="0">
-                </div>
-                <div>
-                    <label for="editRed">Red after seconds</label>
-                    <input id="editRed" type="number" min="0">
-                </div>
-                <div>
-                    <label for="editLowerYellow">Average yellow below seconds</label>
-                    <input id="editLowerYellow" type="number" min="0">
-                </div>
-                <div>
-                    <label for="editLowerRed">Average red below seconds</label>
-                    <input id="editLowerRed" type="number" min="0">
-                </div>
+                <?php echo renderDurationField('editYellow', 'Yellow after', '', 'day'); ?>
+                <?php echo renderDurationField('editRed', 'Red after', '', 'day'); ?>
+                <?php echo renderDurationField('editLowerYellow', 'Average turns yellow below', '', 'day'); ?>
+                <?php echo renderDurationField('editLowerRed', 'Average turns red below', '', 'day'); ?>
             </div>
             <div class="modal-actions">
                 <button id="editCancelBtn" class="btn-muted">Cancel</button>

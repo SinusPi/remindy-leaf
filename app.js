@@ -1,4 +1,12 @@
 $(function () {
+    const UNIT_TO_SECONDS = {
+        second: 1,
+        minute: 60,
+        hour: 3600,
+        day: 86400,
+        week: 604800
+    };
+
     let registerMode = false;
     let remindersCache = [];
     const completionsCache = {};
@@ -71,18 +79,27 @@ $(function () {
         try {
             const payload = {
                 title: $('#rTitle').val().trim(),
-                expected_period_seconds: $('#rExpected').val() || null,
+                expected_period_seconds: durationToSeconds('#rExpectedValue', '#rExpectedUnit', true),
                 desired_date: $('#rDesiredDate').val() || null,
-                yellow_after_seconds: $('#rYellow').val() || 172800,
-                red_after_seconds: $('#rRed').val() || 432000,
-                lower_yellow_below_seconds: $('#rLowerYellow').val() || 172800,
-                lower_red_below_seconds: $('#rLowerRed').val() || 86400
+                yellow_after_seconds: durationToSeconds('#rYellowValue', '#rYellowUnit', false),
+                red_after_seconds: durationToSeconds('#rRedValue', '#rRedUnit', false),
+                lower_yellow_below_seconds: durationToSeconds('#rLowerYellowValue', '#rLowerYellowUnit', false),
+                lower_red_below_seconds: durationToSeconds('#rLowerRedValue', '#rLowerRedUnit', false)
             };
 
             await api('reminders', 'POST', payload, true);
             $('#rTitle').val('');
-            $('#rExpected').val('');
+            $('#rExpectedValue').val('');
+            $('#rExpectedUnit').val('day');
             $('#rDesiredDate').val('');
+            $('#rYellowValue').val('2');
+            $('#rYellowUnit').val('day');
+            $('#rRedValue').val('5');
+            $('#rRedUnit').val('day');
+            $('#rLowerYellowValue').val('2');
+            $('#rLowerYellowUnit').val('day');
+            $('#rLowerRedValue').val('1');
+            $('#rLowerRedUnit').val('day');
             showSuccess('Reminder created');
             await loadReminders();
         } catch (e) {
@@ -174,12 +191,12 @@ $(function () {
 
         activeEditReminderId = id;
         $('#editTitle').val(reminder.title || '');
-        $('#editExpected').val(reminder.expected_period_seconds === null ? '' : reminder.expected_period_seconds);
+        setDurationFields('#editExpectedValue', '#editExpectedUnit', reminder.expected_period_seconds, true);
         $('#editDesiredDate').val(reminder.desired_date || '');
-        $('#editYellow').val(reminder.yellow_after_seconds);
-        $('#editRed').val(reminder.red_after_seconds);
-        $('#editLowerYellow').val(reminder.lower_yellow_below_seconds ?? 172800);
-        $('#editLowerRed').val(reminder.lower_red_below_seconds ?? 86400);
+        setDurationFields('#editYellowValue', '#editYellowUnit', reminder.yellow_after_seconds, false);
+        setDurationFields('#editRedValue', '#editRedUnit', reminder.red_after_seconds, false);
+        setDurationFields('#editLowerYellowValue', '#editLowerYellowUnit', reminder.lower_yellow_below_seconds, false);
+        setDurationFields('#editLowerRedValue', '#editLowerRedUnit', reminder.lower_red_below_seconds, false);
         openModal('#editModal');
         $('#editTitle').trigger('focus');
     });
@@ -197,12 +214,12 @@ $(function () {
 
         const payload = {
             title: $('#editTitle').val().trim(),
-            expected_period_seconds: $('#editExpected').val().trim() === '' ? '' : Number($('#editExpected').val()),
+            expected_period_seconds: durationToSeconds('#editExpectedValue', '#editExpectedUnit', true, true),
             desired_date: $('#editDesiredDate').val().trim(),
-            yellow_after_seconds: Number($('#editYellow').val()),
-            red_after_seconds: Number($('#editRed').val()),
-            lower_yellow_below_seconds: Number($('#editLowerYellow').val()),
-            lower_red_below_seconds: Number($('#editLowerRed').val())
+            yellow_after_seconds: durationToSeconds('#editYellowValue', '#editYellowUnit', false),
+            red_after_seconds: durationToSeconds('#editRedValue', '#editRedUnit', false),
+            lower_yellow_below_seconds: durationToSeconds('#editLowerYellowValue', '#editLowerYellowUnit', false),
+            lower_red_below_seconds: durationToSeconds('#editLowerRedValue', '#editLowerRedUnit', false)
         };
 
         try {
@@ -476,6 +493,64 @@ $(function () {
         }
 
         return formatDurationUnit(totalSeconds / 86400, 'day');
+    }
+
+    function durationToSeconds(valueSelector, unitSelector, allowEmpty, returnEmptyString) {
+        const raw = $(valueSelector).val();
+        const unit = $(unitSelector).val() || 'day';
+
+        if (raw === '' || raw === null || raw === undefined) {
+            if (allowEmpty) {
+                return returnEmptyString ? '' : null;
+            }
+            return 0;
+        }
+
+        const numeric = Number(raw);
+        if (Number.isNaN(numeric)) {
+            if (allowEmpty) {
+                return returnEmptyString ? '' : null;
+            }
+            return 0;
+        }
+
+        const factor = UNIT_TO_SECONDS[unit] || UNIT_TO_SECONDS.day;
+        return Math.round(numeric * factor);
+    }
+
+    function setDurationFields(valueSelector, unitSelector, totalSeconds, allowEmpty) {
+        if (totalSeconds === null || totalSeconds === undefined) {
+            $(valueSelector).val(allowEmpty ? '' : 0);
+            $(unitSelector).val('day');
+            return;
+        }
+
+        const split = splitDuration(totalSeconds);
+        $(valueSelector).val(split.value);
+        $(unitSelector).val(split.unit);
+    }
+
+    function splitDuration(totalSeconds) {
+        const amount = Number(totalSeconds);
+        if (Number.isNaN(amount) || amount < 0) {
+            return { value: '', unit: 'day' };
+        }
+
+        const orderedUnits = [
+            { unit: 'week', seconds: UNIT_TO_SECONDS.week },
+            { unit: 'day', seconds: UNIT_TO_SECONDS.day },
+            { unit: 'hour', seconds: UNIT_TO_SECONDS.hour },
+            { unit: 'minute', seconds: UNIT_TO_SECONDS.minute }
+        ];
+
+        for (let i = 0; i < orderedUnits.length; i++) {
+            const candidate = orderedUnits[i];
+            if (amount % candidate.seconds === 0) {
+                return { value: amount / candidate.seconds, unit: candidate.unit };
+            }
+        }
+
+        return { value: amount, unit: 'second' };
     }
 
     function formatDurationUnit(value, unit) {
