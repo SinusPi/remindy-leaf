@@ -338,6 +338,27 @@ function metricSeverityFromThresholds($metricValue, array $thresholds, $metricKe
     return $best;
 }
 
+function currentSeverityFromThresholds(array $thresholds, array $metricValues) {
+    $best = 'green';
+    foreach ($thresholds as $threshold) {
+        $metricKey = (string) ($threshold['metric_key'] ?? '');
+        if (!array_key_exists($metricKey, $metricValues) || $metricValues[$metricKey] === null) {
+            continue;
+        }
+
+        $numeric = (int) round($metricValues[$metricKey]);
+        $passes = (($threshold['direction'] ?? '') === 'gte')
+            ? $numeric >= (int) $threshold['threshold_seconds']
+            : $numeric <= (int) $threshold['threshold_seconds'];
+
+        if ($passes && severityRank($threshold['severity']) > severityRank($best)) {
+            $best = $threshold['severity'];
+        }
+    }
+
+    return $best;
+}
+
 function findThresholdSeconds(array $thresholds, $metricKey, $direction, $severity) {
     foreach ($thresholds as $threshold) {
         if (
@@ -369,6 +390,7 @@ function reminderWithStats(array $reminder) {
 
     $secondsSinceLastCompletion = secondsDiffFromNow($lastCompletedAt);
     $secondsSinceDesiredDate = secondsDiffFromNow($reminder['desired_date'] ? $reminder['desired_date'] . ' 00:00:00' : null);
+    $secondsUntilDesiredDate = $secondsSinceDesiredDate === null ? null : max(0, -1 * $secondsSinceDesiredDate);
 
     $secondsElapsedForSeverity = $secondsSinceLastCompletion;
     if ($secondsElapsedForSeverity === null && $reminder['desired_date']) {
@@ -394,11 +416,14 @@ function reminderWithStats(array $reminder) {
 
     [$thresholds] = reminderThresholds($reminder, null);
 
-    $currentSeverity = metricSeverityFromThresholds(
-        $secondsElapsedForSeverity,
+    $currentSeverity = currentSeverityFromThresholds(
         $thresholds,
-        'seconds_elapsed_for_severity',
-        'green'
+        [
+            'seconds_elapsed_for_severity' => $secondsElapsedForSeverity,
+            'seconds_since_last_completion' => $secondsSinceLastCompletion,
+            'seconds_since_desired_date' => $secondsSinceDesiredDate,
+            'seconds_until_desired_date' => $secondsUntilDesiredDate,
+        ]
     );
 
     $averageSeverity = metricSeverityFromThresholds(
@@ -428,6 +453,7 @@ function reminderWithStats(array $reminder) {
         'last_completed_at' => $lastCompletedAt,
         'seconds_since_last_completion' => $secondsSinceLastCompletion,
         'seconds_since_desired_date' => $secondsSinceDesiredDate,
+        'seconds_until_desired_date' => $secondsUntilDesiredDate,
         'seconds_elapsed_for_severity' => $secondsElapsedForSeverity,
         'average_seconds_between_completions' => $averageSecondsBetweenCompletions,
         'current_severity' => $currentSeverity,

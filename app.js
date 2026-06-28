@@ -10,7 +10,8 @@ $(function () {
         seconds_elapsed_for_severity: 'Elapsed time since last completion/desired date',
         average_seconds_between_completions: 'Average time between completions',
         seconds_since_last_completion: 'Time since last completion',
-        seconds_since_desired_date: 'Time since desired date'
+        seconds_since_desired_date: 'Time since desired date',
+        seconds_until_desired_date: 'Time until desired date'
     };
     const DEFAULT_THRESHOLDS = [
         { metric_key: 'seconds_elapsed_for_severity', direction: 'gte', severity: 'yellow', threshold_seconds: 2 * 86400 },
