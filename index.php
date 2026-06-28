@@ -165,6 +165,32 @@ function renderDurationField($idPrefix, $label, $defaultValue = '', $defaultUnit
             grid-template-columns: minmax(110px, 1fr) minmax(140px, 1fr);
             gap: 8px;
         }
+        .threshold-list {
+            display: grid;
+            gap: 8px;
+        }
+        .threshold-item {
+            border: 1px solid #d6e3ec;
+            border-radius: 10px;
+            background: #f8fbff;
+            padding: 8px;
+            display: grid;
+            grid-template-columns: minmax(150px, 1.2fr) minmax(100px, 1fr) minmax(100px, 1fr) minmax(160px, 1fr) auto;
+            gap: 8px;
+            align-items: end;
+        }
+        .threshold-item button {
+            width: auto;
+            min-width: 72px;
+            padding: 8px 10px;
+        }
+        .threshold-summary-list {
+            margin: 0;
+            padding-left: 18px;
+        }
+        .threshold-summary-list li {
+            margin-bottom: 2px;
+        }
         .modal {
             position: fixed;
             inset: 0;
@@ -208,6 +234,9 @@ function renderDurationField($idPrefix, $label, $defaultValue = '', $defaultUnit
             .page { padding: 12px; }
             .row > div { flex: 1 1 100%; }
             .toolbar { grid-template-columns: 1fr; }
+            .threshold-item {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -269,10 +298,13 @@ function renderDurationField($idPrefix, $label, $defaultValue = '', $defaultUnit
                 </div>
             </div>
             <div class="row">
-                <?php echo renderDurationField('rYellow', 'Yellow after', 2, 'day'); ?>
-                <?php echo renderDurationField('rRed', 'Red after', 5, 'day'); ?>
-                <?php echo renderDurationField('rLowerYellow', 'Average turns yellow below', 2, 'day'); ?>
-                <?php echo renderDurationField('rLowerRed', 'Average turns red below', 1, 'day'); ?>
+                <div style="flex: 1 1 100%;">
+                    <label>Thresholds</label>
+                    <div id="rThresholds" class="threshold-list"></div>
+                    <div class="actions" style="margin-top: 8px;">
+                        <button id="addCreateThresholdBtn" type="button" class="btn-muted">Add Threshold</button>
+                    </div>
+                </div>
                 <div>
                     <label>&nbsp;</label>
                     <button id="createReminderBtn">Add Reminder</button>
@@ -325,8 +357,8 @@ function renderDurationField($idPrefix, $label, $defaultValue = '', $defaultUnit
                 <div class="small">Desired date: <span class="r-desired-date"></span></div>
                 <div class="small">Expected period: <span class="r-expected-period"></span></div>
                 <div class="small">Average between completions: <span class="r-average-between"></span></div>
-                <div class="small">Upper thresholds: yellow <span class="r-yellow"></span> / red <span class="r-red"></span></div>
-                <div class="small">Average lower thresholds: yellow below <span class="r-lower-yellow"></span> / red below <span class="r-lower-red"></span></div>
+                <div class="small">Thresholds:</div>
+                <div class="small r-thresholds"></div>
                 <div class="actions">
                     <button class="btn-ok complete-btn" type="button">Complete</button>
                     <button class="btn-muted history-btn" type="button">History</button>
@@ -366,10 +398,13 @@ function renderDurationField($idPrefix, $label, $defaultValue = '', $defaultUnit
                 </div>
             </div>
             <div class="row">
-                <?php echo renderDurationField('editYellow', 'Yellow after', '', 'day'); ?>
-                <?php echo renderDurationField('editRed', 'Red after', '', 'day'); ?>
-                <?php echo renderDurationField('editLowerYellow', 'Average turns yellow below', '', 'day'); ?>
-                <?php echo renderDurationField('editLowerRed', 'Average turns red below', '', 'day'); ?>
+                <div style="flex: 1 1 100%;">
+                    <label>Thresholds</label>
+                    <div id="editThresholds" class="threshold-list"></div>
+                    <div class="actions" style="margin-top: 8px;">
+                        <button id="addEditThresholdBtn" type="button" class="btn-muted">Add Threshold</button>
+                    </div>
+                </div>
             </div>
             <div class="modal-actions">
                 <button id="editCancelBtn" class="btn-muted">Cancel</button>

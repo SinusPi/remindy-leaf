@@ -126,36 +126,251 @@ function requestTimingSeconds(array $data, $secondsKey, $legacyDaysKey = null, $
     return $default;
 }
 
-function reminderSeverityColor($secondsElapsed, $yellowAfterSeconds, $redAfterSeconds) {
-    if ($secondsElapsed === null) {
-        return 'green';
-    }
-
-    if ($secondsElapsed >= $redAfterSeconds) {
-        return 'red';
-    }
-
-    if ($secondsElapsed >= $yellowAfterSeconds) {
-        return 'yellow';
-    }
-
-    return 'green';
+function defaultReminderThresholdsFromLegacyValues($yellowAfterSeconds, $redAfterSeconds, $lowerYellowBelowSeconds, $lowerRedBelowSeconds) {
+    return [
+        [
+            'metric_key' => 'seconds_elapsed_for_severity',
+            'direction' => 'gte',
+            'severity' => 'yellow',
+            'threshold_seconds' => (int) $yellowAfterSeconds,
+        ],
+        [
+            'metric_key' => 'seconds_elapsed_for_severity',
+            'direction' => 'gte',
+            'severity' => 'red',
+            'threshold_seconds' => (int) $redAfterSeconds,
+        ],
+        [
+            'metric_key' => 'average_seconds_between_completions',
+            'direction' => 'lte',
+            'severity' => 'yellow',
+            'threshold_seconds' => (int) $lowerYellowBelowSeconds,
+        ],
+        [
+            'metric_key' => 'average_seconds_between_completions',
+            'direction' => 'lte',
+            'severity' => 'red',
+            'threshold_seconds' => (int) $lowerRedBelowSeconds,
+        ],
+        [
+            'metric_key' => 'average_seconds_between_completions',
+            'direction' => 'gte',
+            'severity' => 'yellow',
+            'threshold_seconds' => (int) $yellowAfterSeconds,
+        ],
+        [
+            'metric_key' => 'average_seconds_between_completions',
+            'direction' => 'gte',
+            'severity' => 'red',
+            'threshold_seconds' => (int) $redAfterSeconds,
+        ],
+    ];
 }
 
-function reminderAverageSeverityColor($averageSecondsBetweenCompletions, $lowerYellowBelowSeconds, $lowerRedBelowSeconds, $yellowAfterSeconds, $redAfterSeconds) {
-    if ($averageSecondsBetweenCompletions === null) {
-        return null;
+function validateThresholdRules(array $thresholds, &$errorMessage = null) {
+    $validated = [];
+    foreach ($thresholds as $index => $threshold) {
+        if (!is_array($threshold)) {
+            $errorMessage = 'Each threshold must be an object';
+            return null;
+        }
+
+        $metricKey = trim((string) ($threshold['metric_key'] ?? ''));
+        $direction = trim((string) ($threshold['direction'] ?? ''));
+        $severity = trim((string) ($threshold['severity'] ?? ''));
+        $seconds = $threshold['threshold_seconds'] ?? null;
+
+        if ($metricKey === '' || !preg_match('/^[a-z0-9_]+$/', $metricKey)) {
+            $errorMessage = 'Threshold metric_key is invalid at index ' . $index;
+            return null;
+        }
+
+        if (!in_array($direction, ['gte', 'lte'], true)) {
+            $errorMessage = 'Threshold direction must be gte or lte at index ' . $index;
+            return null;
+        }
+
+        if (!in_array($severity, ['yellow', 'red'], true)) {
+            $errorMessage = 'Threshold severity must be yellow or red at index ' . $index;
+            return null;
+        }
+
+        if ($seconds === null || $seconds === '' || !is_numeric($seconds)) {
+            $errorMessage = 'Threshold seconds must be numeric at index ' . $index;
+            return null;
+        }
+
+        $seconds = (int) $seconds;
+        if ($seconds < 0) {
+            $errorMessage = 'Threshold seconds must be non-negative at index ' . $index;
+            return null;
+        }
+
+        $validated[] = [
+            'metric_key' => $metricKey,
+            'direction' => $direction,
+            'severity' => $severity,
+            'threshold_seconds' => $seconds,
+        ];
     }
 
-    if ($averageSecondsBetweenCompletions <= $lowerRedBelowSeconds) {
-        return 'red';
+    return $validated;
+}
+
+function reminderThresholds($reminder, $requestData = null) {
+    if (
+        $requestData !== null
+        && array_key_exists('thresholds', $requestData)
+        && $requestData['thresholds'] !== null
+        && $requestData['thresholds'] !== ''
+    ) {
+        if (!is_array($requestData['thresholds'])) {
+            return [null, 'Thresholds must be an array'];
+        }
+
+        $error = null;
+        $validated = validateThresholdRules($requestData['thresholds'], $error);
+        if ($validated === null) {
+            return [null, $error];
+        }
+
+        return [$validated, null];
     }
 
-    if ($averageSecondsBetweenCompletions <= $lowerYellowBelowSeconds) {
-        return 'yellow';
+    if ($reminder !== null && array_key_exists('id', $reminder)) {
+        $rows = db()
+            ->select('reminder_thresholds')
+            ->where('reminder_id', (int) $reminder['id'])
+            ->orderBy('position_index', 'ASC')
+            ->orderBy('id', 'ASC')
+            ->get();
+
+        if (!empty($rows)) {
+            $normalized = [];
+            foreach ($rows as $row) {
+                $normalized[] = [
+                    'metric_key' => (string) $row['metric_key'],
+                    'direction' => (string) $row['direction'],
+                    'severity' => (string) $row['severity'],
+                    'threshold_seconds' => (int) $row['threshold_seconds'],
+                ];
+            }
+            return [$normalized, null];
+        }
     }
 
-    return reminderSeverityColor((int) round($averageSecondsBetweenCompletions), $yellowAfterSeconds, $redAfterSeconds);
+    $yellowAfterSeconds = reminderTimingSeconds((array) $reminder, 'yellow_after_seconds', 'yellow_after_days');
+    $redAfterSeconds = reminderTimingSeconds((array) $reminder, 'red_after_seconds', 'red_after_days');
+    $lowerYellowBelowSeconds = reminderTimingSeconds((array) $reminder, 'lower_yellow_below_seconds', 'lower_yellow_below_days');
+    $lowerRedBelowSeconds = reminderTimingSeconds((array) $reminder, 'lower_red_below_seconds', 'lower_red_below_days');
+
+    if ($yellowAfterSeconds === null) {
+        $yellowAfterSeconds = 2 * SECONDS_PER_DAY;
+    }
+    if ($redAfterSeconds === null) {
+        $redAfterSeconds = 5 * SECONDS_PER_DAY;
+    }
+    if ($lowerYellowBelowSeconds === null) {
+        $lowerYellowBelowSeconds = 2 * SECONDS_PER_DAY;
+    }
+    if ($lowerRedBelowSeconds === null) {
+        $lowerRedBelowSeconds = 1 * SECONDS_PER_DAY;
+    }
+
+    return [defaultReminderThresholdsFromLegacyValues(
+        $yellowAfterSeconds,
+        $redAfterSeconds,
+        $lowerYellowBelowSeconds,
+        $lowerRedBelowSeconds
+    ), null];
+}
+
+function persistReminderThresholds($reminderId, $userId, array $thresholds) {
+    db()->delete('reminder_thresholds')
+        ->where('reminder_id', (int) $reminderId)
+        ->where('user_id', (int) $userId)
+        ->execute();
+
+    foreach ($thresholds as $index => $threshold) {
+        db()->insert('reminder_thresholds')->params([
+            'reminder_id' => (int) $reminderId,
+            'user_id' => (int) $userId,
+            'metric_key' => $threshold['metric_key'],
+            'direction' => $threshold['direction'],
+            'severity' => $threshold['severity'],
+            'threshold_seconds' => (int) $threshold['threshold_seconds'],
+            'position_index' => $index,
+        ])->execute();
+    }
+}
+
+function severityRank($severity) {
+    if ($severity === 'red') {
+        return 2;
+    }
+    if ($severity === 'yellow') {
+        return 1;
+    }
+    return 0;
+}
+
+function metricSeverityFromThresholds($metricValue, array $thresholds, $metricKey, $nullSeverity = 'green') {
+    if ($metricValue === null) {
+        return $nullSeverity;
+    }
+
+    $best = 'green';
+    $numeric = (int) round($metricValue);
+    foreach ($thresholds as $threshold) {
+        if (($threshold['metric_key'] ?? '') !== $metricKey) {
+            continue;
+        }
+
+        $passes = (($threshold['direction'] ?? '') === 'gte')
+            ? $numeric >= (int) $threshold['threshold_seconds']
+            : $numeric <= (int) $threshold['threshold_seconds'];
+
+        if ($passes && severityRank($threshold['severity']) > severityRank($best)) {
+            $best = $threshold['severity'];
+        }
+    }
+
+    return $best;
+}
+
+function currentSeverityFromThresholds(array $thresholds, array $metricValues) {
+    $best = 'green';
+    foreach ($thresholds as $threshold) {
+        $metricKey = (string) ($threshold['metric_key'] ?? '');
+        if (!array_key_exists($metricKey, $metricValues) || $metricValues[$metricKey] === null) {
+            continue;
+        }
+
+        $numeric = (int) round($metricValues[$metricKey]);
+        $passes = (($threshold['direction'] ?? '') === 'gte')
+            ? $numeric >= (int) $threshold['threshold_seconds']
+            : $numeric <= (int) $threshold['threshold_seconds'];
+
+        if ($passes && severityRank($threshold['severity']) > severityRank($best)) {
+            $best = $threshold['severity'];
+        }
+    }
+
+    return $best;
+}
+
+function findThresholdSeconds(array $thresholds, $metricKey, $direction, $severity) {
+    foreach ($thresholds as $threshold) {
+        if (
+            ($threshold['metric_key'] ?? null) === $metricKey
+            && ($threshold['direction'] ?? null) === $direction
+            && ($threshold['severity'] ?? null) === $severity
+        ) {
+            return (int) $threshold['threshold_seconds'];
+        }
+    }
+
+    return null;
 }
 
 function reminderWithStats(array $reminder) {
@@ -172,13 +387,10 @@ function reminderWithStats(array $reminder) {
     }
 
     $expectedPeriodSeconds = reminderTimingSeconds($reminder, 'expected_period_seconds', 'expected_period_days');
-    $yellowAfterSeconds = reminderTimingSeconds($reminder, 'yellow_after_seconds', 'yellow_after_days');
-    $redAfterSeconds = reminderTimingSeconds($reminder, 'red_after_seconds', 'red_after_days');
-    $lowerYellowBelowSeconds = reminderTimingSeconds($reminder, 'lower_yellow_below_seconds', 'lower_yellow_below_days');
-    $lowerRedBelowSeconds = reminderTimingSeconds($reminder, 'lower_red_below_seconds', 'lower_red_below_days');
 
     $secondsSinceLastCompletion = secondsDiffFromNow($lastCompletedAt);
     $secondsSinceDesiredDate = secondsDiffFromNow($reminder['desired_date'] ? $reminder['desired_date'] . ' 00:00:00' : null);
+    $secondsUntilDesiredDate = $secondsSinceDesiredDate === null ? null : max(0, -1 * $secondsSinceDesiredDate);
 
     $secondsElapsedForSeverity = $secondsSinceLastCompletion;
     if ($secondsElapsedForSeverity === null && $reminder['desired_date']) {
@@ -202,25 +414,36 @@ function reminderWithStats(array $reminder) {
         }
     }
 
-    $currentSeverity = reminderSeverityColor(
-        $secondsElapsedForSeverity,
-        $yellowAfterSeconds,
-        $redAfterSeconds
+    [$thresholds] = reminderThresholds($reminder, null);
+
+    $currentSeverity = currentSeverityFromThresholds(
+        $thresholds,
+        [
+            'seconds_elapsed_for_severity' => $secondsElapsedForSeverity,
+            'seconds_since_last_completion' => $secondsSinceLastCompletion,
+            'seconds_since_desired_date' => $secondsSinceDesiredDate,
+            'seconds_until_desired_date' => $secondsUntilDesiredDate,
+        ]
     );
 
-    $averageSeverity = reminderAverageSeverityColor(
+    $averageSeverity = metricSeverityFromThresholds(
         $averageSecondsBetweenCompletions,
-        $lowerYellowBelowSeconds,
-        $lowerRedBelowSeconds,
-        $yellowAfterSeconds,
-        $redAfterSeconds
+        $thresholds,
+        'average_seconds_between_completions',
+        null
     );
+
+    $yellowAfterSeconds = findThresholdSeconds($thresholds, 'seconds_elapsed_for_severity', 'gte', 'yellow');
+    $redAfterSeconds = findThresholdSeconds($thresholds, 'seconds_elapsed_for_severity', 'gte', 'red');
+    $lowerYellowBelowSeconds = findThresholdSeconds($thresholds, 'average_seconds_between_completions', 'lte', 'yellow');
+    $lowerRedBelowSeconds = findThresholdSeconds($thresholds, 'average_seconds_between_completions', 'lte', 'red');
 
     return [
         'id' => (int) $reminder['id'],
         'title' => $reminder['title'],
         'desired_date' => $reminder['desired_date'],
         'expected_period_seconds' => $expectedPeriodSeconds,
+        'thresholds' => $thresholds,
         'yellow_after_seconds' => $yellowAfterSeconds,
         'red_after_seconds' => $redAfterSeconds,
         'lower_yellow_below_seconds' => $lowerYellowBelowSeconds,
@@ -230,6 +453,7 @@ function reminderWithStats(array $reminder) {
         'last_completed_at' => $lastCompletedAt,
         'seconds_since_last_completion' => $secondsSinceLastCompletion,
         'seconds_since_desired_date' => $secondsSinceDesiredDate,
+        'seconds_until_desired_date' => $secondsUntilDesiredDate,
         'seconds_elapsed_for_severity' => $secondsElapsedForSeverity,
         'average_seconds_between_completions' => $averageSecondsBetweenCompletions,
         'current_severity' => $currentSeverity,
@@ -580,6 +804,7 @@ app()->post('/reminders', [
             'desired_date',
             'expected_period_seconds',
             'expected_period_days',
+            'thresholds',
             'yellow_after_seconds',
             'yellow_after_days',
             'red_after_seconds',
@@ -593,10 +818,29 @@ app()->post('/reminders', [
         $title = trim((string) ($data['title'] ?? ''));
         $desiredDate = trim((string) ($data['desired_date'] ?? ''));
         $expectedPeriodSeconds = requestTimingSeconds($data, 'expected_period_seconds', 'expected_period_days');
-        $yellowAfterSeconds = requestTimingSeconds($data, 'yellow_after_seconds', 'yellow_after_days', 2 * SECONDS_PER_DAY);
-        $redAfterSeconds = requestTimingSeconds($data, 'red_after_seconds', 'red_after_days', 5 * SECONDS_PER_DAY);
-        $lowerYellowBelowSeconds = requestTimingSeconds($data, 'lower_yellow_below_seconds', 'lower_yellow_below_days', 2 * SECONDS_PER_DAY);
-        $lowerRedBelowSeconds = requestTimingSeconds($data, 'lower_red_below_seconds', 'lower_red_below_days', 1 * SECONDS_PER_DAY);
+        [$thresholds, $thresholdError] = reminderThresholds(null, $data);
+
+        if ($thresholds === null) {
+            response()->json([
+                'success' => false,
+                'message' => $thresholdError ?: 'Thresholds are invalid',
+                'error' => 'invalid_input',
+            ], 400);
+            return;
+        }
+
+        if (!array_key_exists('thresholds', $data) || $data['thresholds'] === null || $data['thresholds'] === '') {
+            $yellowAfterSeconds = requestTimingSeconds($data, 'yellow_after_seconds', 'yellow_after_days', 2 * SECONDS_PER_DAY);
+            $redAfterSeconds = requestTimingSeconds($data, 'red_after_seconds', 'red_after_days', 5 * SECONDS_PER_DAY);
+            $lowerYellowBelowSeconds = requestTimingSeconds($data, 'lower_yellow_below_seconds', 'lower_yellow_below_days', 2 * SECONDS_PER_DAY);
+            $lowerRedBelowSeconds = requestTimingSeconds($data, 'lower_red_below_seconds', 'lower_red_below_days', 1 * SECONDS_PER_DAY);
+            $thresholds = defaultReminderThresholdsFromLegacyValues(
+                $yellowAfterSeconds,
+                $redAfterSeconds,
+                $lowerYellowBelowSeconds,
+                $lowerRedBelowSeconds
+            );
+        }
 
         if ($title === '') {
             response()->json([
@@ -611,24 +855,6 @@ app()->post('/reminders', [
             response()->json([
                 'success' => false,
                 'message' => 'Expected period must be a positive number of seconds',
-                'error' => 'invalid_input',
-            ], 400);
-            return;
-        }
-
-        if ($yellowAfterSeconds < 0 || $redAfterSeconds < 0 || $redAfterSeconds < $yellowAfterSeconds) {
-            response()->json([
-                'success' => false,
-                'message' => 'Severity thresholds are invalid',
-                'error' => 'invalid_input',
-            ], 400);
-            return;
-        }
-
-        if ($lowerYellowBelowSeconds < 0 || $lowerRedBelowSeconds < 0 || $lowerRedBelowSeconds > $lowerYellowBelowSeconds) {
-            response()->json([
-                'success' => false,
-                'message' => 'Lower average severity thresholds are invalid',
                 'error' => 'invalid_input',
             ], 400);
             return;
@@ -650,15 +876,18 @@ app()->post('/reminders', [
             'title' => $title,
             'desired_date' => $desiredDate !== '' ? $desiredDate : null,
             'expected_period_seconds' => $expectedPeriodSeconds,
-            'yellow_after_seconds' => $yellowAfterSeconds,
-            'red_after_seconds' => $redAfterSeconds,
-            'lower_yellow_below_seconds' => $lowerYellowBelowSeconds,
-            'lower_red_below_seconds' => $lowerRedBelowSeconds,
+            'yellow_after_seconds' => findThresholdSeconds($thresholds, 'seconds_elapsed_for_severity', 'gte', 'yellow') ?? 2 * SECONDS_PER_DAY,
+            'red_after_seconds' => findThresholdSeconds($thresholds, 'seconds_elapsed_for_severity', 'gte', 'red') ?? 5 * SECONDS_PER_DAY,
+            'lower_yellow_below_seconds' => findThresholdSeconds($thresholds, 'average_seconds_between_completions', 'lte', 'yellow') ?? 2 * SECONDS_PER_DAY,
+            'lower_red_below_seconds' => findThresholdSeconds($thresholds, 'average_seconds_between_completions', 'lte', 'red') ?? 1 * SECONDS_PER_DAY,
         ])->execute();
+
+        $createdId = (int) db()->connection()->lastInsertId();
+        persistReminderThresholds($createdId, $userId, $thresholds);
 
         $created = db()
             ->select('reminders')
-            ->where('id', db()->connection()->lastInsertId())
+            ->where('id', $createdId)
             ->first();
 
         response()->json([
@@ -711,6 +940,7 @@ app()->put('/reminders/{id}', [
             'desired_date',
             'expected_period_seconds',
             'expected_period_days',
+            'thresholds',
             'yellow_after_seconds',
             'yellow_after_days',
             'red_after_seconds',
@@ -729,19 +959,61 @@ app()->put('/reminders/{id}', [
             ? requestTimingSeconds($data, 'expected_period_seconds', 'expected_period_days')
             : reminderTimingSeconds($reminder, 'expected_period_seconds');
 
-        $yellowAfterSeconds = array_key_exists('yellow_after_seconds', $data) || array_key_exists('yellow_after_days', $data)
-            ? requestTimingSeconds($data, 'yellow_after_seconds', 'yellow_after_days', 2 * SECONDS_PER_DAY)
-            : reminderTimingSeconds($reminder, 'yellow_after_seconds');
+        [$existingThresholds] = reminderThresholds($reminder, null);
+        $thresholds = $existingThresholds;
+        if (array_key_exists('thresholds', $data) && $data['thresholds'] !== null && $data['thresholds'] !== '') {
+            [$thresholds, $thresholdError] = reminderThresholds($reminder, $data);
+            if ($thresholds === null) {
+                response()->json([
+                    'success' => false,
+                    'message' => $thresholdError ?: 'Thresholds are invalid',
+                    'error' => 'invalid_input',
+                ], 400);
+                return;
+            }
+        } elseif (
+            array_key_exists('yellow_after_seconds', $data)
+            || array_key_exists('yellow_after_days', $data)
+            || array_key_exists('red_after_seconds', $data)
+            || array_key_exists('red_after_days', $data)
+            || array_key_exists('lower_yellow_below_seconds', $data)
+            || array_key_exists('lower_yellow_below_days', $data)
+            || array_key_exists('lower_red_below_seconds', $data)
+            || array_key_exists('lower_red_below_days', $data)
+        ) {
+            $yellowAfterSeconds = array_key_exists('yellow_after_seconds', $data) || array_key_exists('yellow_after_days', $data)
+                ? requestTimingSeconds($data, 'yellow_after_seconds', 'yellow_after_days', 2 * SECONDS_PER_DAY)
+                : findThresholdSeconds($existingThresholds, 'seconds_elapsed_for_severity', 'gte', 'yellow');
+            $redAfterSeconds = array_key_exists('red_after_seconds', $data) || array_key_exists('red_after_days', $data)
+                ? requestTimingSeconds($data, 'red_after_seconds', 'red_after_days', 5 * SECONDS_PER_DAY)
+                : findThresholdSeconds($existingThresholds, 'seconds_elapsed_for_severity', 'gte', 'red');
+            $lowerYellowBelowSeconds = array_key_exists('lower_yellow_below_seconds', $data) || array_key_exists('lower_yellow_below_days', $data)
+                ? requestTimingSeconds($data, 'lower_yellow_below_seconds', 'lower_yellow_below_days', 2 * SECONDS_PER_DAY)
+                : findThresholdSeconds($existingThresholds, 'average_seconds_between_completions', 'lte', 'yellow');
+            $lowerRedBelowSeconds = array_key_exists('lower_red_below_seconds', $data) || array_key_exists('lower_red_below_days', $data)
+                ? requestTimingSeconds($data, 'lower_red_below_seconds', 'lower_red_below_days', 1 * SECONDS_PER_DAY)
+                : findThresholdSeconds($existingThresholds, 'average_seconds_between_completions', 'lte', 'red');
 
-        $redAfterSeconds = array_key_exists('red_after_seconds', $data) || array_key_exists('red_after_days', $data)
-            ? requestTimingSeconds($data, 'red_after_seconds', 'red_after_days', 5 * SECONDS_PER_DAY)
-            : reminderTimingSeconds($reminder, 'red_after_seconds');
-        $lowerYellowBelowSeconds = array_key_exists('lower_yellow_below_seconds', $data) || array_key_exists('lower_yellow_below_days', $data)
-            ? requestTimingSeconds($data, 'lower_yellow_below_seconds', 'lower_yellow_below_days', 2 * SECONDS_PER_DAY)
-            : reminderTimingSeconds($reminder, 'lower_yellow_below_seconds');
-        $lowerRedBelowSeconds = array_key_exists('lower_red_below_seconds', $data) || array_key_exists('lower_red_below_days', $data)
-            ? requestTimingSeconds($data, 'lower_red_below_seconds', 'lower_red_below_days', 1 * SECONDS_PER_DAY)
-            : reminderTimingSeconds($reminder, 'lower_red_below_seconds');
+            if ($yellowAfterSeconds === null) {
+                $yellowAfterSeconds = 2 * SECONDS_PER_DAY;
+            }
+            if ($redAfterSeconds === null) {
+                $redAfterSeconds = 5 * SECONDS_PER_DAY;
+            }
+            if ($lowerYellowBelowSeconds === null) {
+                $lowerYellowBelowSeconds = 2 * SECONDS_PER_DAY;
+            }
+            if ($lowerRedBelowSeconds === null) {
+                $lowerRedBelowSeconds = 1 * SECONDS_PER_DAY;
+            }
+
+            $thresholds = defaultReminderThresholdsFromLegacyValues(
+                $yellowAfterSeconds,
+                $redAfterSeconds,
+                $lowerYellowBelowSeconds,
+                $lowerRedBelowSeconds
+            );
+        }
 
         if ($title === '') {
             response()->json([
@@ -761,24 +1033,6 @@ app()->put('/reminders/{id}', [
             return;
         }
 
-        if ($yellowAfterSeconds < 0 || $redAfterSeconds < 0 || $redAfterSeconds < $yellowAfterSeconds) {
-            response()->json([
-                'success' => false,
-                'message' => 'Severity thresholds are invalid',
-                'error' => 'invalid_input',
-            ], 400);
-            return;
-        }
-
-        if ($lowerYellowBelowSeconds < 0 || $lowerRedBelowSeconds < 0 || $lowerRedBelowSeconds > $lowerYellowBelowSeconds) {
-            response()->json([
-                'success' => false,
-                'message' => 'Lower average severity thresholds are invalid',
-                'error' => 'invalid_input',
-            ], 400);
-            return;
-        }
-
         if ($desiredDate !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $desiredDate)) {
             response()->json([
                 'success' => false,
@@ -792,11 +1046,12 @@ app()->put('/reminders/{id}', [
             'title' => $title,
             'desired_date' => $desiredDate !== '' ? $desiredDate : null,
             'expected_period_seconds' => $expectedPeriodSeconds,
-            'yellow_after_seconds' => $yellowAfterSeconds,
-            'red_after_seconds' => $redAfterSeconds,
-            'lower_yellow_below_seconds' => $lowerYellowBelowSeconds,
-            'lower_red_below_seconds' => $lowerRedBelowSeconds,
+            'yellow_after_seconds' => findThresholdSeconds($thresholds, 'seconds_elapsed_for_severity', 'gte', 'yellow') ?? 2 * SECONDS_PER_DAY,
+            'red_after_seconds' => findThresholdSeconds($thresholds, 'seconds_elapsed_for_severity', 'gte', 'red') ?? 5 * SECONDS_PER_DAY,
+            'lower_yellow_below_seconds' => findThresholdSeconds($thresholds, 'average_seconds_between_completions', 'lte', 'yellow') ?? 2 * SECONDS_PER_DAY,
+            'lower_red_below_seconds' => findThresholdSeconds($thresholds, 'average_seconds_between_completions', 'lte', 'red') ?? 1 * SECONDS_PER_DAY,
         ])->where('id', (int) $id)->where('user_id', $userId)->execute();
+        persistReminderThresholds((int) $id, $userId, $thresholds);
 
         $updated = findReminderForUser($id, $userId);
 
@@ -824,6 +1079,7 @@ app()->delete('/reminders/{id}', [
         }
 
         db()->delete('reminder_completions')->where('reminder_id', (int) $id)->where('user_id', $userId)->execute();
+        db()->delete('reminder_thresholds')->where('reminder_id', (int) $id)->where('user_id', $userId)->execute();
         db()->delete('reminders')->where('id', (int) $id)->where('user_id', $userId)->execute();
 
         response()->json([
@@ -981,6 +1237,47 @@ function migrateSchema($dbConnection) {
             INDEX idx_completions_date (completed_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         '1>2' => "ALTER TABLE reminder_completions ADD COLUMN completion_comment TEXT NULL AFTER completed_at",
+    ]);
+
+    $schema->manageTable('reminder_thresholds', [
+        '1' => "CREATE TABLE reminder_thresholds (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            reminder_id INT UNSIGNED NOT NULL,
+            user_id INT UNSIGNED NOT NULL,
+            metric_key VARCHAR(100) NOT NULL,
+            direction VARCHAR(8) NOT NULL,
+            severity VARCHAR(16) NOT NULL,
+            threshold_seconds INT UNSIGNED NOT NULL,
+            position_index INT UNSIGNED NOT NULL DEFAULT 0,
+            created_at DATETIME NULL,
+            updated_at DATETIME NULL,
+            INDEX idx_thresholds_reminder (reminder_id),
+            INDEX idx_thresholds_user (user_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        '1>2' => "INSERT INTO reminder_thresholds (reminder_id, user_id, metric_key, direction, severity, threshold_seconds, position_index)
+            SELECT r.id, r.user_id, 'seconds_elapsed_for_severity', 'gte', 'yellow', COALESCE(r.yellow_after_seconds, 172800), 0
+            FROM reminders r
+            WHERE NOT EXISTS (SELECT 1 FROM reminder_thresholds t WHERE t.reminder_id = r.id);
+            INSERT INTO reminder_thresholds (reminder_id, user_id, metric_key, direction, severity, threshold_seconds, position_index)
+            SELECT r.id, r.user_id, 'seconds_elapsed_for_severity', 'gte', 'red', COALESCE(r.red_after_seconds, 432000), 1
+            FROM reminders r
+            WHERE NOT EXISTS (SELECT 1 FROM reminder_thresholds t WHERE t.reminder_id = r.id AND t.position_index = 1);
+            INSERT INTO reminder_thresholds (reminder_id, user_id, metric_key, direction, severity, threshold_seconds, position_index)
+            SELECT r.id, r.user_id, 'average_seconds_between_completions', 'lte', 'yellow', COALESCE(r.lower_yellow_below_seconds, 172800), 2
+            FROM reminders r
+            WHERE NOT EXISTS (SELECT 1 FROM reminder_thresholds t WHERE t.reminder_id = r.id AND t.position_index = 2);
+            INSERT INTO reminder_thresholds (reminder_id, user_id, metric_key, direction, severity, threshold_seconds, position_index)
+            SELECT r.id, r.user_id, 'average_seconds_between_completions', 'lte', 'red', COALESCE(r.lower_red_below_seconds, 86400), 3
+            FROM reminders r
+            WHERE NOT EXISTS (SELECT 1 FROM reminder_thresholds t WHERE t.reminder_id = r.id AND t.position_index = 3);
+            INSERT INTO reminder_thresholds (reminder_id, user_id, metric_key, direction, severity, threshold_seconds, position_index)
+            SELECT r.id, r.user_id, 'average_seconds_between_completions', 'gte', 'yellow', COALESCE(r.yellow_after_seconds, 172800), 4
+            FROM reminders r
+            WHERE NOT EXISTS (SELECT 1 FROM reminder_thresholds t WHERE t.reminder_id = r.id AND t.position_index = 4);
+            INSERT INTO reminder_thresholds (reminder_id, user_id, metric_key, direction, severity, threshold_seconds, position_index)
+            SELECT r.id, r.user_id, 'average_seconds_between_completions', 'gte', 'red', COALESCE(r.red_after_seconds, 432000), 5
+            FROM reminders r
+            WHERE NOT EXISTS (SELECT 1 FROM reminder_thresholds t WHERE t.reminder_id = r.id AND t.position_index = 5)",
     ]);
 
 }
